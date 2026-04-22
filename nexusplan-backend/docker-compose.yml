@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # --- BASES DE DONNÉES & MESSAGERIE ---
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: nexusplan_db
+      POSTGRES_USER: nexus_user
+      POSTGRES_PASSWORD: super_secret_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432" # Optionnel : pour t'y connecter depuis DBeaver/pgAdmin
+    networks:
+      - nexus_network
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - nexus_network
+
+  # --- MICROSERVICES DJANGO ---
+  auth_service:
+    build: 
+      context: ./auth_service
+    command: gunicorn auth_service.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./auth_service:/app
+    environment:
+      - DATABASE_URL=postgres://nexus_user:super_secret_password@db:5432/nexusplan_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - nexus_network
+
+  project_service:
+    build: 
+      context: ./project_service
+    command: gunicorn project_service.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./project_service:/app
+    environment:
+      - DATABASE_URL=postgres://nexus_user:super_secret_password@db:5432/nexusplan_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - nexus_network
+
+
+  realtime_service:
+    build: 
+      context: ./realtime_service
+    # Daphne est requis pour les WebSockets (ASGI)
+    command: daphne -b 0.0.0.0 -p 8000 realtime_service.asgi:application
+    volumes:
+      - ./realtime_service:/app
+    environment:
+      - DATABASE_URL=postgres://nexus_user:super_secret_password@db:5432/nexusplan_db
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
+    networks:
+      - nexus_network
+
+  # --- API GATEWAY ---
+  api_gateway:
+    build:
+      context: ./api_gateway
+    ports:
+      - "80:80" # Expose Nginx sur le port 80 de ta machine
+    depends_on:
+      - auth_service
+      - project_service
+      - realtime_service
+    networks:
+      - nexus_network
+
+networks:
+  nexus_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
