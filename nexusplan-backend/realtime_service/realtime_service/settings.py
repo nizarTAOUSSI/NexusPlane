@@ -109,6 +109,16 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "WebSocket / real-time collaboration service for NexusPlan.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
     "SERVERS": [{"url": "/ws", "description": "Via API Gateway"}],
+    "SWAGGER_UI_SETTINGS": {
+        "persistAuthorization": True,
+        "urls": [
+            {"url": "/docs/auth/schema/",     "name": "Auth Service"},
+            {"url": "/docs/projects/schema/", "name": "Project Service"},
+            {"url": "/docs/tasks/schema/",    "name": "Task Service"},
+            {"url": "/docs/ai/schema/",       "name": "AI Service"},
+            {"url": "/docs/realtime/schema/", "name": "Realtime Service"},
+        ],
+        "urls.primaryName": "Realtime Service",
+    },
 }
