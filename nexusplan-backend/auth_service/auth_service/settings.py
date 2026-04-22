@@ -170,5 +170,6 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_SETTINGS": {
         "persistAuthorization": True,
     },
+    "SERVERS": [{"url": "/auth", "description": "Via API Gateway"}],
 }
 
