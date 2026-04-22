@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NexusPlan — API Documentation</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" />
+  <style>
+    body { margin: 0; padding: 0; }
+    .topbar { background-color: #1b1b2f; padding: 12px 20px; display: flex; align-items: center; gap: 16px; }
+    .topbar img { height: 32px; }
+    .topbar span { color: #fff; font-size: 1.2rem; font-weight: bold; font-family: sans-serif; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span>NexusPlan — API Gateway Docs</span>
+  </div>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = function () {
+      SwaggerUIBundle({
+        urls: [
+          { url: "/docs/schema/auth/",     name: "Auth Service"     },
+          { url: "/docs/schema/projects/", name: "Project Service"  },
+          { url: "/docs/schema/tasks/",    name: "Task Service"     },
+          { url: "/docs/schema/ai/",       name: "AI Service"       },
+          { url: "/docs/schema/realtime/", name: "Realtime Service" },
+        ],
+        "urls.primaryName": "Auth Service",
+        dom_id: "#swagger-ui",
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        layout: "StandaloneLayout",
+        persistAuthorization: true,
+      });
+    };
+  </script>
+</body>
+</html>
