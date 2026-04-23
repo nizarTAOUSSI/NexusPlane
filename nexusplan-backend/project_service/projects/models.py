@@ -1,0 +1,102 @@
+import uuid
+
+from django.db import models
+
+
+# ---------------------------------------------------------------------------
+# Enums
+# ---------------------------------------------------------------------------
+
+
+class ProjectStatus(models.TextChoices):
+    ACTIVE = "ACTIVE", "Active"
+    ARCHIVED = "ARCHIVED", "Archived"
+    DELETED = "DELETED", "Deleted"
+
+
+class MemberRole(models.TextChoices):
+    VIEWER = "VIEWER", "Viewer"
+    CONTRIBUTOR = "CONTRIBUTOR", "Contributor"
+    MANAGER = "MANAGER", "Manager"
+
+
+# ---------------------------------------------------------------------------
+# Project
+# ---------------------------------------------------------------------------
+
+
+class Project(models.Model):
+    """
+    Represents a NexusPlan project.
+
+    ownerId references the User from auth_service; we deliberately store
+    only the UUID, as project_service has no direct DB access to auth_service.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    status = models.CharField(
+        max_length=20,
+        choices=ProjectStatus.choices,
+        default=ProjectStatus.ACTIVE,
+    )
+    ownerId = models.UUIDField(
+        db_index=True,
+        help_text="UUID of the project creator, resolved from auth_service.",
+    )
+    createdAt = models.DateTimeField(auto_now_add=True)
+    updatedAt = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "projects"
+        ordering = ["-createdAt"]
+
+    def __str__(self) -> str:
+        return f"{self.name} [{self.status}]"
+
+
+# ---------------------------------------------------------------------------
+# Membership
+# ---------------------------------------------------------------------------
+
+
+class Membership(models.Model):
+    """
+    Represents a user's membership in a project.
+
+    userId references the User from auth_service — stored as a plain UUID;
+    no foreign key constraint to the auth_service DB.
+
+    Constraint: a user (userId) can only appear once per project (projectId).
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    projectId = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+        db_column="project_id",
+    )
+    userId = models.UUIDField(
+        db_index=True,
+        help_text="UUID of the invited user, resolved from auth_service.",
+    )
+    role = models.CharField(
+        max_length=20,
+        choices=MemberRole.choices,
+        default=MemberRole.VIEWER,
+    )
+    joinedAt = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "memberships"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["projectId", "userId"],
+                name="unique_project_member",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"User {self.userId} → Project {self.projectId_id} [{self.role}]"

@@ -1,7 +1,7 @@
 """URL configuration for project_service — NexusPlan"""
 
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -22,6 +22,8 @@ def health_check(request):
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/health/", health_check, name="health-check"),
+    # Projects & Memberships
+    path("api/", include("projects.urls")),
     # OpenAPI schema + Swagger UI + ReDoc
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
@@ -35,3 +37,4 @@ urlpatterns = [
         name="redoc",
     ),
 ]
+

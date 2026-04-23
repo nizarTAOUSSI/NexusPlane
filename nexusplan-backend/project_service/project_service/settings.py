@@ -27,6 +27,8 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "drf_spectacular",
+    # Local
+    "projects",
 ]
 
 MIDDLEWARE = [
