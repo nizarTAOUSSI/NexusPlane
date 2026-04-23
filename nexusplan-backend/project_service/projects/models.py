@@ -3,11 +3,6 @@ import uuid
 from django.db import models
 
 
-# ---------------------------------------------------------------------------
-# Enums
-# ---------------------------------------------------------------------------
-
-
 class ProjectStatus(models.TextChoices):
     ACTIVE = "ACTIVE", "Active"
     ARCHIVED = "ARCHIVED", "Archived"
@@ -20,18 +15,8 @@ class MemberRole(models.TextChoices):
     MANAGER = "MANAGER", "Manager"
 
 
-# ---------------------------------------------------------------------------
-# Project
-# ---------------------------------------------------------------------------
-
 
 class Project(models.Model):
-    """
-    Represents a NexusPlan project.
-
-    ownerId references the User from auth_service; we deliberately store
-    only the UUID, as project_service has no direct DB access to auth_service.
-    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
@@ -56,20 +41,8 @@ class Project(models.Model):
         return f"{self.name} [{self.status}]"
 
 
-# ---------------------------------------------------------------------------
-# Membership
-# ---------------------------------------------------------------------------
-
 
 class Membership(models.Model):
-    """
-    Represents a user's membership in a project.
-
-    userId references the User from auth_service — stored as a plain UUID;
-    no foreign key constraint to the auth_service DB.
-
-    Constraint: a user (userId) can only appear once per project (projectId).
-    """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     projectId = models.ForeignKey(
