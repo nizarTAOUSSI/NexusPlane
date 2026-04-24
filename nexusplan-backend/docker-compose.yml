@@ -19,7 +19,7 @@ services:
 
   frontend:
     build:
-      context: ./nexusplan-frontend
+      context: ../nexusplan-frontend
     networks:
       - nexus_network
 
