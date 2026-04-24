@@ -107,3 +107,15 @@ volumes:
 networks:
   nexus_network:
     driver: bridge
+
+from: "nexusplan-frontend"
+services:
+  frontend:
+    build:
+      context: ./nexusplan-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api_gateway
+    networks:
+      - nexus_network
