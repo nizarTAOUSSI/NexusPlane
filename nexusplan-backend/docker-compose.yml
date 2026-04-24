@@ -17,6 +17,12 @@ services:
     networks:
       - nexus_network
 
+  frontend:
+    build:
+      context: ./nexusplan-frontend
+    networks:
+      - nexus_network
+
   api_gateway:
     build:
       context: ./api_gateway
@@ -29,6 +35,7 @@ services:
       - task_service
       - ai_service
       - realtime_service
+      - frontend   
     volumes:
       - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
@@ -107,15 +114,3 @@ volumes:
 networks:
   nexus_network:
     driver: bridge
-
-from: "nexusplan-frontend"
-services:
-  frontend:
-    build:
-      context: ./nexusplan-frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - api_gateway
-    networks:
-      - nexus_network
