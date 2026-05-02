@@ -1,14 +1,18 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import Sidebar from '../components/Sidebar';
+import Sidebar, { TopNavbar } from '../components/Sidebar';
 
 const DashboardLayout: React.FC = () => {
   return (
-    <div className="dashboard-shell">
-      <Sidebar />
-      <main className="dashboard-main">
-        <Outlet />
-      </main>
+    <div className="app-shell">
+      <TopNavbar />
+
+      <div className="app-body">
+        <Sidebar />
+        <main className="app-main">
+          <Outlet />
+        </main>
+      </div>
     </div>
   );
 };

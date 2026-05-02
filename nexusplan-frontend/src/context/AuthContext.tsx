@@ -13,6 +13,7 @@ interface AuthContextType {
   user: UserInfo | null;
   token: string | null;
   isAuthenticated: boolean;
+  loading: boolean;
   login: (access: string, refresh: string, userInfo: UserInfo) => void;
   logout: () => void;
 }
@@ -23,6 +24,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserInfo | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('access_token');
@@ -37,6 +39,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("Failed to parse user info");
       }
     }
+    setLoading(false);
   }, []);
 
   const login = (access: string, refresh: string, userInfo: UserInfo) => {
@@ -67,7 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

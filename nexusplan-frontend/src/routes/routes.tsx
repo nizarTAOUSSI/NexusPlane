@@ -1,11 +1,13 @@
 import { createBrowserRouter } from 'react-router-dom';
-import LandingPage   from '../Pages/LandingPage';
-import Page404       from '../Pages/Page404';
-import LoginPage     from '../Pages/LoginPage';
-import SignupPage    from '../Pages/SignupPage';
+import LandingPage from '../Pages/LandingPage';
+import Page404 from '../Pages/Page404';
+import LoginPage from '../Pages/LoginPage';
+import SignupPage from '../Pages/SignupPage';
 import DashboardPage from '../Pages/DashboardPage';
+import ProjectsPage from '../Pages/ProjectsPage';
+import ProjectDetailPage from '../Pages/ProjectDetailPage';
 import DashboardLayout from '../layouts/DashboardLayout';
-import ProtectedRoute  from './ProtectedRoute';
+import ProtectedRoute from './ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
@@ -30,15 +32,16 @@ export const router = createBrowserRouter([
       {
         element: <DashboardLayout />,
         children: [
-          { path: '/dashboard',              element: <DashboardPage /> },
-          { path: '/dashboard/project',      element: <DashboardPage /> },
-          { path: '/dashboard/revenue',      element: <DashboardPage /> },
-          { path: '/dashboard/insights',     element: <DashboardPage /> },
-          { path: '/dashboard/contracts',    element: <DashboardPage /> },
-          { path: '/dashboard/payments',     element: <DashboardPage /> },
-          { path: '/dashboard/notifications',element: <DashboardPage /> },
+          { path: '/dashboard', element: <DashboardPage /> },
+          { path: '/projects', element: <ProjectsPage /> },
+          { path: '/projects/:id', element: <ProjectDetailPage /> },
+          { path: '/dashboard/revenue', element: <DashboardPage /> },
+          { path: '/dashboard/insights', element: <DashboardPage /> },
+          { path: '/dashboard/contracts', element: <DashboardPage /> },
+          { path: '/dashboard/payments', element: <DashboardPage /> },
+          { path: '/dashboard/notifications', element: <DashboardPage /> },
         ],
-      },
+      },  
     ],
   },
 
