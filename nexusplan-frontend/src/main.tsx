@@ -14,7 +14,7 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <GoogleOAuthProvider clientId="10000000000-dummy.apps.googleusercontent.com">
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
       <AuthProvider>
         <RouterProvider router={router} />
       </AuthProvider>
