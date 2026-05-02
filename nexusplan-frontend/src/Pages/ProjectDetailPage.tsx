@@ -107,7 +107,7 @@ const InviteModal: React.FC<InviteModalProps> = ({
   };
 
   const isSuccess = status === 'success_existing' || status === 'success_new';
-  const canSendAnother = isSuccess && status === 'success_new';
+  // const canSendAnother = isSuccess && status === 'success_new';
 
   const resetForm = () => {
     setEmail('');
