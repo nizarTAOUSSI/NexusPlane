@@ -557,11 +557,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # 1. Resolve userId from auth_service
         auth_url = django_settings.AUTH_SERVICE_URL.rstrip("/")
         try:
             resp = http_requests.get(
-                f"{auth_url}/users/lookup/",
+                f"{auth_url}/api/auth/lookup/",
                 params={"email": email},
                 timeout=5,
             )
