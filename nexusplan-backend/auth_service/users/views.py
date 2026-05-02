@@ -2,6 +2,8 @@ from django.conf import settings as django_settings
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiResponse, extend_schema
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -18,6 +20,7 @@ from .serializers import (
     LogoutSerializer,
     RegisterSerializer,
     UserProfileSerializer,
+    GoogleLoginSerializer,
 )
 
 _AUTH_TAG = ["Authentication"]
@@ -85,12 +88,10 @@ class LoginView(APIView):
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
-        # --- Generate token pair via simplejwt ---
         refresh = RefreshToken.for_user(user)
         access_token = str(refresh.access_token)
         refresh_token = str(refresh)
 
-        # --- Persist a record in our Token model for audit/revocation trace ---
         access_lifetime = django_settings.SIMPLE_JWT.get("ACCESS_TOKEN_LIFETIME")
         Token.objects.create(
             user=user,
@@ -107,6 +108,78 @@ class LoginView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+class GoogleLoginView(APIView):
+    """Authenticate with Google ID token; receive a JWT token pair."""
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Google Login — verify credential and obtain JWT",
+        request=GoogleLoginSerializer,
+        responses={
+            200: LoginResponseSerializer,
+            400: OpenApiResponse(description="Invalid credential"),
+        },
+        tags=_AUTH_TAG,
+    )
+    def post(self, request: Request) -> Response:
+        serializer = GoogleLoginSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        credential = serializer.validated_data["credential"]
+
+        try:
+            idinfo = id_token.verify_oauth2_token(
+                credential,
+                google_requests.Request()
+            )
+
+            email = idinfo.get("email")
+            name = idinfo.get("name", "")
+            picture = idinfo.get("picture", None)
+
+            if not email:
+                return Response(
+                    {"detail": "Google token does not contain email."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            from .models import User
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    "username": name or email.split("@")[0],
+                    "avatar": picture,
+                }
+            )
+
+            refresh = RefreshToken.for_user(user)
+            access_token = str(refresh.access_token)
+            refresh_token = str(refresh)
+
+            access_lifetime = django_settings.SIMPLE_JWT.get("ACCESS_TOKEN_LIFETIME")
+            Token.objects.create(
+                user=user,
+                accessToken=access_token,
+                refreshToken=refresh_token,
+                expiresAt=timezone.now() + access_lifetime,
+            )
+
+            return Response(
+                {
+                    "access": access_token,
+                    "refresh": refresh_token,
+                    "user": UserProfileSerializer(user).data,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except ValueError:
+            # Invalid token
+            return Response(
+                {"detail": "Invalid Google credential."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -227,7 +300,6 @@ class ChangePasswordView(APIView):
         user.set_password(serializer.validated_data["new_password"])
         user.save()
 
-        # Invalidate all active token records for this user as a security measure
         Token.objects.filter(user=user, isValid=True).update(isValid=False)
 
         return Response(

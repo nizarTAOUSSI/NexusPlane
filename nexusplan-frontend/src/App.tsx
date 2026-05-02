@@ -1,19 +1,7 @@
-import AIAdvantageSection from './components/AIAdvantageSection'
-import FeaturesSection from './components/FeaturesSection'
-import CTASection from './components/CTASection'
-import Footer from './components/Footer'
-import HeroSection from './components/HeroSection'
-
-export default function App() {
+const App = () => {
   return (
-    <>
-      <main>
-        <HeroSection />  
-        <AIAdvantageSection />
-        <FeaturesSection />
-        <CTASection />
-      </main>
-      <Footer />
-    </>
+    <></>
   )
 }
+
+export default App

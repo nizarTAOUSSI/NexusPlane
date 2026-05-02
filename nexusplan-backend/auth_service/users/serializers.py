@@ -65,6 +65,10 @@ class LoginResponseSerializer(serializers.Serializer):
     refresh = serializers.CharField()
     user = UserProfileSerializer()
 
+class GoogleLoginSerializer(serializers.Serializer):
+    credential = serializers.CharField(help_text="Google ID token from frontend")
+
+
 
 # ---------------------------------------------------------------------------
 # Password change
