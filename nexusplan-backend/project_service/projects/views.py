@@ -557,25 +557,25 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        auth_url = django_settings.AUTH_SERVICE_URL.rstrip("/")
-        try:
-            resp = http_requests.get(
-                f"{auth_url}/api/auth/lookup/",
-                params={"email": email},
-                timeout=5,
-            )
-        except http_requests.RequestException as exc:
-            return Response(
-                {"detail": f"Could not reach auth_service: {exc}"},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
+        from django.db import connection
 
-        user_exists = resp.status_code == 200
-        user_data = resp.json() if user_exists else {}
-        user_id = user_data.get("id")
-        username = user_data.get("username", email.split("@")[0]) if user_exists else email.split("@")[0]
+        user_id = None
+        username = email.split("@")[0]
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT id::text, username FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1",
+                [email],
+            )
+            row = cursor.fetchone()
+
+        user_exists = row is not None
+        if user_exists:
+            user_id = row[0]
+            username = row[1] or username
 
         frontend_url = django_settings.FRONTEND_URL.rstrip("/")
+
 
         if user_exists:
             if Membership.objects.filter(projectId=project, userId=user_id).exists():
