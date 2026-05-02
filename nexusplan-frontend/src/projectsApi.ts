@@ -14,6 +14,9 @@ export interface Membership {
   id: string;
   projectId: string;
   userId: string;
+  username: string | null;
+  email: string | null;
+  avatar: string | null;
   role: 'VIEWER' | 'CONTRIBUTOR' | 'MANAGER';
   joinedAt: string;
 }
@@ -29,7 +32,7 @@ export interface InvitePayload {
 }
 
 export const projectsApi = {
-  list: (params?: { ownerId?: string; status?: string }) =>
+  list: (params?: { ownerId?: string; userId?: string; status?: string }) =>
     api.get<Project[]>('/projects/', { params }).then(r => r.data),
 
   get: (id: string) =>

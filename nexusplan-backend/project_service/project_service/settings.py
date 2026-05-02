@@ -148,3 +148,5 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 AUTH_SERVICE_URL = os.environ.get("AUTH_SERVICE_URL", "http://auth_service:8000")
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")

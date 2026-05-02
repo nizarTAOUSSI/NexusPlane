@@ -1,3 +1,6 @@
+import json
+
+import redis as redis_client
 from django.conf import settings as django_settings
 from django.contrib.auth import authenticate
 from django.utils import timezone
@@ -30,6 +33,34 @@ _PROFILE_TAG = ["Profile"]
 
 
 # ---------------------------------------------------------------------------
+# Redis helper — caches user info for other services to look up
+# ---------------------------------------------------------------------------
+
+_USER_CACHE_TTL = 60 * 60 * 24 * 7  # 7 days
+
+
+def _get_redis():
+    return redis_client.Redis.from_url(
+        django_settings.REDIS_URL, decode_responses=True
+    )
+
+
+def _cache_user(user) -> None:
+    """Write user profile to Redis so project_service can resolve email → id."""
+    try:
+        r = _get_redis()
+        data = json.dumps({
+            "id":       str(user.id),
+            "email":    user.email,
+            "username": user.username or "",
+            "avatar":   user.avatar or "",
+        })
+        r.set(f"user:id:{user.id}",              data, ex=_USER_CACHE_TTL)
+        r.set(f"user:email:{user.email.lower()}", data, ex=_USER_CACHE_TTL)
+    except Exception:  # Redis unavailable — non-fatal
+        pass
+
+# ---------------------------------------------------------------------------
 # Register
 # ---------------------------------------------------------------------------
 
@@ -52,6 +83,7 @@ class RegisterView(APIView):
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        _cache_user(user)  # publish to Redis for other services
         return Response(UserProfileSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
@@ -101,6 +133,8 @@ class LoginView(APIView):
             refreshToken=refresh_token,
             expiresAt=timezone.now() + access_lifetime,
         )
+
+        _cache_user(user)  # refresh Redis cache on every login
 
         return Response(
             {
@@ -167,6 +201,8 @@ class GoogleLoginView(APIView):
                 refreshToken=refresh_token,
                 expiresAt=timezone.now() + access_lifetime,
             )
+
+            _cache_user(user)  # refresh Redis cache on every Google login
 
             return Response(
                 {

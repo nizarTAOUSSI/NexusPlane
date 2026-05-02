@@ -1,5 +1,7 @@
+import json
 import urllib.parse
 
+import redis as redis_client
 import requests as http_requests
 from django.conf import settings as django_settings
 from django.core.mail import EmailMultiAlternatives
@@ -29,6 +31,59 @@ from .serializers import (
 
 _PROJECT_TAG = ["Projects"]
 _MEMBERSHIP_TAG = ["Memberships"]
+
+
+def _redis():
+    return redis_client.Redis.from_url(
+        django_settings.REDIS_URL, decode_responses=True
+    )
+
+
+def _get_user_by_email(email: str) -> dict | None:
+    try:
+        cached = _redis().get(f"user:email:{email.lower()}")
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        pass
+    try:
+        auth_url = getattr(django_settings, "AUTH_SERVICE_URL", "").rstrip("/")
+        if auth_url:
+            resp = http_requests.get(
+                f"{auth_url}/api/auth/lookup/",
+                params={"email": email},
+                timeout=3,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                try:
+                    _redis().set(
+                        f"user:email:{email.lower()}",
+                        json.dumps(data),
+                        ex=86400,
+                    )
+                    _redis().set(
+                        f"user:id:{data.get('id')}",
+                        json.dumps(data),
+                        ex=86400,
+                    )
+                except Exception:
+                    pass
+                return data
+    except Exception:
+        pass
+    return None
+
+
+def _get_user_by_id(user_id: str) -> dict | None:
+    """Resolve user info by UUID. Redis only (populated on login)."""
+    try:
+        cached = _redis().get(f"user:id:{user_id}")
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        pass
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -392,14 +447,31 @@ class ProjectViewSet(viewsets.ModelViewSet):
     # ------------------------------------------------------------------
 
     def get_queryset(self):
-        """Return non-deleted projects, with optional query-param filters."""
+        """
+        Return non-deleted projects.
+
+        Supports two filter modes:
+          - ``userId``  → returns projects where the user is owner OR member
+          - ``ownerId`` → returns only projects owned by that user (legacy)
+        ``status`` can be combined with either.
+        """
+        from django.db.models import Q
         qs = Project.objects.exclude(status=ProjectStatus.DELETED)
 
-        owner_id = self.request.query_params.get("ownerId")
+        user_id      = self.request.query_params.get("userId")
+        owner_id     = self.request.query_params.get("ownerId")
         filter_status = self.request.query_params.get("status")
 
-        if owner_id:
+        if user_id:
+            member_project_ids = Membership.objects.filter(
+                userId=user_id
+            ).values_list("projectId_id", flat=True)
+            qs = qs.filter(
+                Q(ownerId=user_id) | Q(id__in=member_project_ids)
+            )
+        elif owner_id:
             qs = qs.filter(ownerId=owner_id)
+
         if filter_status:
             qs = qs.filter(status=filter_status)
 
@@ -505,11 +577,25 @@ class ProjectViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["get"], url_path="members")
     def get_members(self, request: Request, pk=None) -> Response:  # noqa: ARG002
-        """Return all Membership records for this project (UML: getMembers())."""
+        """Return all memberships enriched with username/email from Redis."""
         project = self.get_object()
         memberships = project.memberships.all()
-        serializer = MembershipSerializer(memberships, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+
+        enriched = []
+        for m in memberships:
+            user_info = _get_user_by_id(str(m.userId)) or {}
+            enriched.append({
+                "id":        str(m.id),
+                "projectId": str(m.projectId_id),
+                "userId":    str(m.userId),
+                "username":  user_info.get("username") or None,
+                "email":     user_info.get("email") or None,
+                "avatar":    user_info.get("avatar") or None,
+                "role":      m.role,
+                "joinedAt":  m.joinedAt.isoformat(),
+            })
+
+        return Response(enriched, status=status.HTTP_200_OK)
 
     # ------------------------------------------------------------------
     # Custom action — invite member by email
@@ -557,22 +643,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        from django.db import connection
-
-        user_id = None
-        username = email.split("@")[0]
-
-        with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT id::text, username FROM users WHERE LOWER(email) = LOWER(%s) LIMIT 1",
-                [email],
-            )
-            row = cursor.fetchone()
-
-        user_exists = row is not None
-        if user_exists:
-            user_id = row[0]
-            username = row[1] or username
+        user_info  = _get_user_by_email(email)
+        user_exists = user_info is not None
+        user_id     = user_info.get("id") if user_exists else None
+        username    = (user_info.get("username") or email.split("@")[0]) if user_exists else email.split("@")[0]
 
         frontend_url = django_settings.FRONTEND_URL.rstrip("/")
 

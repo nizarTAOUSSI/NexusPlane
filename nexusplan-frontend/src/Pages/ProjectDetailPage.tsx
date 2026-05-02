@@ -500,14 +500,20 @@ const ProjectDetailPage: React.FC = () => {
                 transition={{ delay: 0.2 + i * 0.05 }}
               >
                 <div className="pd-member-av">
-                  {m.userId.slice(0, 2).toUpperCase()}
+                  {m.avatar
+                    ? <img src={m.avatar} alt={m.username || m.email || 'member'} className="pd-member-av-img" />
+                    : (m.username || m.email || m.userId).slice(0, 2).toUpperCase()
+                  }
                 </div>
 
                 <div className="pd-member-info">
-                  <span className="pd-member-id" title={m.userId}>
-                    {m.userId.slice(0, 8)}…
+                  <span className="pd-member-id" title={m.email || m.userId}>
+                    {m.username || m.email || `${m.userId.slice(0, 8)}…`}
                   </span>
-                  <span className="pd-member-joined">Joined {fmtShort(m.joinedAt)}</span>
+                  <span className="pd-member-joined">
+                    {m.email && m.username ? m.email : ''}
+                    {(!m.email || !m.username) ? `Joined ${fmtShort(m.joinedAt)}` : ''}
+                  </span>
                 </div>
 
                 <span className={roleClass(m.role)}>

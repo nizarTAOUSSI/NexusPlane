@@ -208,3 +208,8 @@ CORS_ALLOW_HEADERS = [
     "x-requested-with",
 ]
 
+# ---------------------------------------------------------------------------
+# Redis — used as user-info cache for inter-service communication
+# ---------------------------------------------------------------------------
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
