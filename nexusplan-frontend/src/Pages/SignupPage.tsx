@@ -42,13 +42,12 @@ const SignupPage = () => {
         }
         setIsLoading(true);
         try {
-            const response = await api.post('/auth/register/', {
+            await api.post('/auth/register/', {
                 email,
                 username: email.split('@')[0],
                 password,
                 password2: passwordConfirm
             });
-            // Auto login or redirect to login
             navigate('/login');
         } catch (error) {
             console.error("Signup failed", error);
