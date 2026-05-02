@@ -14,9 +14,6 @@ import {
   Search,
   Plus,
   LogOut,
-  FolderKanban,
-  TrendingUp,
-  Lightbulb,
 } from 'lucide-react';
 
 const MESSAGES = [
@@ -67,29 +64,24 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside
-      className={`sidebar-root ${collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}
-    >
+    <aside className={`sidebar-root ${collapsed ? 'sidebar-collapsed' : 'sidebar-expanded'}`}>
+      
+      <button
+        className="sidebar-collapse-btn"
+        onClick={() => setCollapsed(c => !c)}
+        title={collapsed ? 'Expand' : 'Collapse'}
+      >
+        {collapsed ? <ChevronRight size={14} strokeWidth={3} /> : <ChevronLeft size={14} strokeWidth={3} />}
+      </button>
+
       <div className="sidebar-header">
-        <button
-          className="sidebar-logo-btn"
-          onClick={() => navigate('/dashboard')}
-          title="NexusPlan"
-        >
+        <button className="sidebar-logo-btn" onClick={() => navigate('/dashboard')} title="NexusPlan">
           <img src={logo} alt="NexusPlan" className="sidebar-logo-img" />
-          {!collapsed && <span className="sidebar-logo-text">NexusPlan</span>}
-        </button>
-        <button
-          className="sidebar-collapse-btn"
-          onClick={() => setCollapsed(c => !c)}
-          title={collapsed ? 'Expand' : 'Collapse'}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
       </div>
 
       <div className="sidebar-search-wrap">
-        <Search className="sidebar-search-icon" size={15} />
+        <Search className="sidebar-search-icon" size={18} strokeWidth={2} />
         {!collapsed && (
           <>
             <input
@@ -97,14 +89,18 @@ const Sidebar: React.FC = () => {
               placeholder="Search"
               className="sidebar-search-input"
             />
-            <span className="sidebar-search-hint">⌘ S</span>
+            <span className="sidebar-search-hint">
+              <span className="cmd-icon">⌘</span> S
+            </span>
           </>
         )}
       </div>
 
-      {/* ── Main nav ── */}
       <nav className="sidebar-nav">
-        <p className="sidebar-section-label">{!collapsed && 'MAIN'}</p>
+        <div className="sidebar-section-header">
+           <p className="sidebar-section-label">{!collapsed && 'MAIN'}</p>
+        </div>
+        
         {NAV_MAIN.map(item => {
           const Icon = item.icon;
           const hasSub = !!item.sub?.length;
@@ -112,22 +108,21 @@ const Sidebar: React.FC = () => {
           const active = isActive(item.path);
 
           return (
-            <div key={item.id}>
+            <div key={item.id} className="sidebar-nav-group">
               <button
-                className={`sidebar-nav-item ${active ? 'sidebar-nav-item--active' : ''}`}
+                className={`sidebar-nav-item ${active && !hasSub ? 'sidebar-nav-item--active' : ''} ${hasSub && open && !collapsed ? 'sidebar-nav-item--expanded' : ''}`}
                 onClick={() => handleNav(item.path, hasSub, item.id)}
                 title={collapsed ? item.label : ''}
               >
-                <Icon size={18} className="sidebar-nav-icon" />
+                <Icon size={20} strokeWidth={2} className="sidebar-nav-icon" />
                 {!collapsed && <span className="sidebar-nav-label">{item.label}</span>}
                 {!collapsed && hasSub && (
                   <span className="sidebar-nav-chevron">
-                    {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {open ? <ChevronUp size={16} strokeWidth={2.5}/> : <ChevronDown size={16} strokeWidth={2.5} />}
                   </span>
                 )}
               </button>
 
-              {/* Sub-items */}
               {hasSub && open && !collapsed && (
                 <div className="sidebar-subnav">
                   {item.sub!.map(sub => (
@@ -136,14 +131,13 @@ const Sidebar: React.FC = () => {
                       className={`sidebar-subnav-item ${isActive(sub.path) ? 'sidebar-subnav-item--active' : ''}`}
                       onClick={() => navigate(sub.path)}
                     >
-                      <span className="sidebar-subnav-dot" />
                       {sub.label}
                     </button>
                   ))}
                 </div>
               )}
 
-              {hasSub && open && collapsed && (
+              {hasSub && collapsed && (
                 <div className="sidebar-tooltip-menu">
                   {item.sub!.map(sub => (
                     <button
@@ -162,46 +156,51 @@ const Sidebar: React.FC = () => {
       </nav>
 
       <div className="sidebar-messages">
-        <div className="sidebar-messages-header">
-          {!collapsed && <p className="sidebar-section-label">MESSAGES</p>}
+        <div className="sidebar-section-header">
+          <p className="sidebar-section-label">{!collapsed && 'MESSAGES'}</p>
           {!collapsed && (
             <button className="sidebar-messages-add" title="New message">
-              <Plus size={14} />
+              <Plus size={16} strokeWidth={2} />
             </button>
           )}
         </div>
-        {MESSAGES.map(m => (
-          <button key={m.id} className="sidebar-contact" title={collapsed ? m.name : ''}>
-            <div className="sidebar-contact-avatar-wrap">
-              <img src={m.avatar} alt={m.name} className="sidebar-contact-avatar" />
-              {m.online && <span className="sidebar-contact-dot" />}
-            </div>
-            {!collapsed && <span className="sidebar-contact-name">{m.name}</span>}
-          </button>
-        ))}
+        
+        <div className="sidebar-messages-list">
+            {MESSAGES.map(m => (
+            <button key={m.id} className="sidebar-contact" title={collapsed ? m.name : ''}>
+                <div className="sidebar-contact-avatar-wrap">
+                <img src={m.avatar} alt={m.name} className="sidebar-contact-avatar" />
+                {m.online && <span className="sidebar-contact-dot" />}
+                </div>
+                {!collapsed && <span className="sidebar-contact-name">{m.name}</span>}
+            </button>
+            ))}
+        </div>
       </div>
+
+      <div className="sidebar-spacer" />
 
       <div className="sidebar-user-wrap">
         <button
           className="sidebar-user"
           onClick={() => setUserMenuOpen(o => !o)}
-          title={collapsed ? (user?.username ?? 'User') : ''}
+          title={collapsed ? (user?.username ?? 'John Doe') : ''}
         >
           <div className="sidebar-user-avatar-wrap">
             {user?.avatar
               ? <img src={user.avatar} alt={user.username} className="sidebar-user-avatar" />
               : <div className="sidebar-user-avatar sidebar-user-avatar--placeholder">
-                  {(user?.username?.[0] ?? 'U').toUpperCase()}
+                  <img src="https://i.pravatar.cc/150?img=11" alt="Placeholder" />
                 </div>
             }
           </div>
           {!collapsed && (
             <div className="sidebar-user-info">
-              <span className="sidebar-user-name">{user?.username ?? 'User'}</span>
-              <span className="sidebar-user-role">{user?.role ?? 'Member'}</span>
+              <span className="sidebar-user-name">{user?.username ?? 'John Doe'}</span>
+              <span className="sidebar-user-role">{user?.role ?? 'DESIGNER'}</span>
             </div>
           )}
-          {!collapsed && <ChevronDown size={14} className="sidebar-user-chevron" />}
+          {!collapsed && <ChevronDown size={16} strokeWidth={2} className="sidebar-user-chevron" />}
         </button>
 
         {userMenuOpen && (

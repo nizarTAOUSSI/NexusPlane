@@ -14,4 +14,13 @@ export default defineConfig({
   optimizeDeps: {
     include: ['lottie-react'],
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://nexusplane.duckdns.org',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
 })

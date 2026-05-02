@@ -6,3 +6,4 @@ drf-spectacular
 redis
 python-dotenv
 gunicorn
+django-cors-headers

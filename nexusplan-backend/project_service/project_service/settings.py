@@ -98,3 +98,39 @@ SPECTACULAR_SETTINGS = {
     "SERVERS": [{"url": "", "description": "Via API Gateway"}],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
+
+# ---------------------------------------------------------------------------
+# CORS — allow local dev frontend + production
+# ---------------------------------------------------------------------------
+INSTALLED_APPS += ["corsheaders"]
+
+MIDDLEWARE.insert(0, "corsheaders.middleware.CorsMiddleware")
+
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.environ.get(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://localhost:80,https://nexusplane.duckdns.org",
+    ).split(",")
+    if o.strip()
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
