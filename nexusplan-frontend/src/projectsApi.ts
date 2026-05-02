@@ -23,6 +23,11 @@ export interface CreateProjectPayload {
   description?: string;
 }
 
+export interface InvitePayload {
+  email: string;
+  role?: 'VIEWER' | 'CONTRIBUTOR' | 'MANAGER';
+}
+
 export const projectsApi = {
   list: (params?: { ownerId?: string; status?: string }) =>
     api.get<Project[]>('/projects/', { params }).then(r => r.data),
@@ -46,4 +51,7 @@ export const projectsApi = {
 
   getMembers: (id: string) =>
     api.get<Membership[]>(`/projects/${id}/members/`).then(r => r.data),
+
+  inviteMember: (projectId: string, payload: InvitePayload) =>
+    api.post(`/projects/${projectId}/invite/`, payload).then(r => r.data),
 };

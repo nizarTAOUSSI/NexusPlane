@@ -1,7 +1,8 @@
 from django.conf import settings as django_settings
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiResponse, extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from rest_framework import status
@@ -24,6 +25,7 @@ from .serializers import (
 )
 
 _AUTH_TAG = ["Authentication"]
+_INTERNAL_TAG = ["Internal"]
 _PROFILE_TAG = ["Profile"]
 
 
@@ -307,3 +309,57 @@ class ChangePasswordView(APIView):
             {"detail": "Password changed successfully."},
             status=status.HTTP_200_OK,
         )
+
+
+# ---------------------------------------------------------------------------
+# Internal — lookup user by email (used by project_service for invite flow)
+# ---------------------------------------------------------------------------
+
+
+class LookupByEmailView(APIView):
+    """
+    Internal endpoint: given an email, return the user profile.
+    Returns 404 if no user with that email exists.
+    This endpoint is called by project_service to resolve userId before
+    creating a Membership and sending an invitation email.
+    """
+
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Look up a user by email (internal)",
+        parameters=[
+            OpenApiParameter(
+                name="email",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="The email address to look up.",
+            )
+        ],
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description="Missing email parameter."),
+            404: OpenApiResponse(description="No user with that email."),
+        },
+        tags=_INTERNAL_TAG,
+    )
+    def get(self, request: Request) -> Response:
+        email = request.query_params.get("email", "").strip()
+        if not email:
+            return Response(
+                {"detail": "'email' query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .models import User
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return Response(
+                {"detail": "No user found with that email address."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)

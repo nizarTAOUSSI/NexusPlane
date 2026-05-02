@@ -1,3 +1,9 @@
+import urllib.parse
+
+import requests as http_requests
+from django.conf import settings as django_settings
+from django.core.mail import EmailMultiAlternatives
+from django.template.loader import render_to_string
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -23,6 +29,254 @@ from .serializers import (
 
 _PROJECT_TAG = ["Projects"]
 _MEMBERSHIP_TAG = ["Memberships"]
+
+
+# ---------------------------------------------------------------------------
+# Email helper functions
+# ---------------------------------------------------------------------------
+
+_ROLE_LABEL = {
+    "VIEWER": "Viewer",
+    "CONTRIBUTOR": "Contributor",
+    "MANAGER": "Manager",
+}
+
+_ROLE_COLOR = {
+    "VIEWER": "#6366F1",
+    "CONTRIBUTOR": "#10B981",
+    "MANAGER": "#F59E0B",
+}
+
+_BASE_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>{subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#0F0F13;font-family:'Segoe UI',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+         style="background:#0F0F13;padding:40px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:560px;">
+
+        <!-- Header -->
+        <tr>
+          <td align="center" style="padding-bottom:28px;">
+            <div style="display:inline-flex;align-items:center;gap:10px;">
+              <div style="width:40px;height:40px;border-radius:12px;
+                          background:linear-gradient(135deg,#6366F1,#8B5CF6);
+                          display:inline-block;vertical-align:middle;"></div>
+              <span style="font-size:22px;font-weight:800;color:#FFFFFF;
+                           letter-spacing:-0.5px;vertical-align:middle;">
+                Nexus<span style="font-weight:300;">Plan</span>
+              </span>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Card -->
+        <tr>
+          <td style="background:#1A1A24;border-radius:20px;
+                     border:1px solid rgba(255,255,255,0.08);
+                     box-shadow:0 24px 64px rgba(0,0,0,0.5);
+                     overflow:hidden;">
+
+            <!-- Top accent bar -->
+            <div style="height:4px;background:linear-gradient(90deg,#6366F1,#8B5CF6,#EC4899);"></div>
+
+            <!-- Body -->
+            <div style="padding:40px 40px 36px;">
+              {body}
+            </div>
+
+            <!-- Footer -->
+            <div style="padding:20px 40px 28px;border-top:1px solid rgba(255,255,255,0.06);">
+              <p style="margin:0;font-size:12px;color:#4B4B6B;text-align:center;line-height:1.7;">
+                You received this email because someone invited you to NexusPlan.<br/>
+                If you believe this is a mistake, you can safely ignore this email.
+              </p>
+              <p style="margin:12px 0 0;font-size:11px;color:#36364A;text-align:center;">
+                &copy; {year} NexusPlan &mdash; All rights reserved
+              </p>
+            </div>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>
+"""
+
+
+def _role_badge(role: str) -> str:
+    color = _ROLE_COLOR.get(role, "#6366F1")
+    label = _ROLE_LABEL.get(role, role.title())
+    return (
+        f'<span style="display:inline-block;background:{color}20;color:{color};'
+        f'border:1px solid {color}40;border-radius:999px;'
+        f'padding:3px 14px;font-size:12px;font-weight:700;'
+        f'text-transform:uppercase;letter-spacing:0.07em;">{label}</span>'
+    )
+
+
+def _send_existing_user_invite(
+    *,
+    to_email: str,
+    username: str,
+    project_name: str,
+    role: str,
+    project_url: str,
+    frontend_url: str,
+) -> None:
+    """Send an invitation email to a user who already has a NexusPlan account."""
+    from datetime import date
+
+    subject = f"You've been invited to \"{project_name}\" on NexusPlan"
+
+    body = f"""
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;
+                color:#6366F1;text-transform:uppercase;letter-spacing:0.1em;">
+        Project Invitation
+      </p>
+      <h1 style="margin:0 0 18px;font-size:26px;font-weight:800;
+                 color:#FFFFFF;letter-spacing:-0.5px;line-height:1.2;">
+        You've been invited to collaborate
+      </h1>
+      <p style="margin:0 0 24px;font-size:15px;color:#9090B0;line-height:1.7;">
+        Hi <strong style="color:#FFFFFF;">{username}</strong>, someone has added you to a
+        project on NexusPlan. You can now access it with the following role:
+      </p>
+
+      <!-- Project card -->
+      <div style="background:#12121C;border:1px solid rgba(255,255,255,0.08);
+                  border-radius:14px;padding:22px 24px;margin-bottom:28px;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#4B4B6B;
+                  text-transform:uppercase;letter-spacing:0.09em;">Project</p>
+        <p style="margin:0 0 16px;font-size:20px;font-weight:800;color:#FFFFFF;
+                  letter-spacing:-0.3px;">{project_name}</p>
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#4B4B6B;
+                  text-transform:uppercase;letter-spacing:0.09em;">Your Role</p>
+        {_role_badge(role)}
+      </div>
+
+      <!-- CTA -->
+      <div style="text-align:center;margin-bottom:28px;">
+        <a href="{project_url}"
+           style="display:inline-block;background:linear-gradient(135deg,#6366F1,#8B5CF6);
+                  color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;
+                  padding:14px 36px;border-radius:12px;
+                  box-shadow:0 8px 24px rgba(99,102,241,0.4);
+                  letter-spacing:0.01em;">
+          Open Project &rarr;
+        </a>
+      </div>
+
+      <p style="margin:0;font-size:13px;color:#4B4B6B;text-align:center;line-height:1.6;">
+        Or copy this link into your browser:<br/>
+        <a href="{project_url}" style="color:#6366F1;font-size:12px;word-break:break-all;">
+          {project_url}
+        </a>
+      </p>
+    """
+
+    html_content = _BASE_HTML.format(
+        subject=subject, body=body, year=date.today().year
+    )
+    text_content = (
+        f"Hi {username},\n\n"
+        f"You've been invited to join \"{project_name}\" on NexusPlan with the role: {role}.\n\n"
+        f"Open the project here: {project_url}\n\n"
+        f"— The NexusPlan Team"
+    )
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_content,
+        to=[to_email],
+    )
+    msg.attach_alternative(html_content, "text/html")
+    msg.send(fail_silently=True)
+
+
+def _send_new_user_invite(
+    *,
+    to_email: str,
+    project_name: str,
+    role: str,
+    register_url: str,
+    frontend_url: str,
+) -> None:
+    """Send an invitation email to someone who doesn't have a NexusPlan account yet."""
+    from datetime import date
+
+    subject = f"You're invited to join \"{project_name}\" on NexusPlan"
+
+    body = f"""
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;
+                color:#EC4899;text-transform:uppercase;letter-spacing:0.1em;">
+        You're Invited
+      </p>
+      <h1 style="margin:0 0 18px;font-size:26px;font-weight:800;
+                 color:#FFFFFF;letter-spacing:-0.5px;line-height:1.2;">
+        Join NexusPlan &amp; start collaborating
+      </h1>
+      <p style="margin:0 0 24px;font-size:15px;color:#9090B0;line-height:1.7;">
+        Someone has invited you to collaborate on a project on NexusPlan, the
+        modern project management platform. Create your free account to get started.
+      </p>
+
+      <!-- Project card -->
+      <div style="background:#12121C;border:1px solid rgba(255,255,255,0.08);
+                  border-radius:14px;padding:22px 24px;margin-bottom:28px;">
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#4B4B6B;
+                  text-transform:uppercase;letter-spacing:0.09em;">You're invited to</p>
+        <p style="margin:0 0 16px;font-size:20px;font-weight:800;color:#FFFFFF;
+                  letter-spacing:-0.3px;">{project_name}</p>
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#4B4B6B;
+                  text-transform:uppercase;letter-spacing:0.09em;">Your Role</p>
+        {_role_badge(role)}
+      </div>
+
+      <!-- CTA -->
+      <div style="text-align:center;margin-bottom:28px;">
+        <a href="{register_url}"
+           style="display:inline-block;background:linear-gradient(135deg,#EC4899,#8B5CF6);
+                  color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;
+                  padding:14px 36px;border-radius:12px;
+                  box-shadow:0 8px 24px rgba(236,72,153,0.35);
+                  letter-spacing:0.01em;">
+          Create Account &amp; Join &rarr;
+        </a>
+      </div>
+
+      <p style="margin:0;font-size:13px;color:#4B4B6B;text-align:center;line-height:1.6;">
+        Or copy this link into your browser:<br/>
+        <a href="{register_url}" style="color:#EC4899;font-size:12px;word-break:break-all;">
+          {register_url}
+        </a>
+      </p>
+    """
+
+    html_content = _BASE_HTML.format(
+        subject=subject, body=body, year=date.today().year
+    )
+    text_content = (
+        f"You've been invited to join \"{project_name}\" on NexusPlan with the role: {role}.\n\n"
+        f"Create your free account here: {register_url}\n\n"
+        f"— The NexusPlan Team"
+    )
+
+    msg = EmailMultiAlternatives(
+        subject=subject,
+        body=text_content,
+        to=[to_email],
+    )
+    msg.attach_alternative(html_content, "text/html")
+    msg.send(fail_silently=True)
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +510,119 @@ class ProjectViewSet(viewsets.ModelViewSet):
         memberships = project.memberships.all()
         serializer = MembershipSerializer(memberships, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------
+    # Custom action — invite member by email
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Invite a user by email",
+        description=(
+            "Looks up the email in auth_service. If the user exists, creates a "
+            "Membership and sends an invitation email. If not, sends a "
+            "registration-invite email asking them to create an account."
+        ),
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "format": "email"},
+                    "role": {
+                        "type": "string",
+                        "enum": ["VIEWER", "CONTRIBUTOR", "MANAGER"],
+                        "default": "VIEWER",
+                    },
+                },
+                "required": ["email"],
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="Invitation email sent (user already a member)."),
+            201: MembershipSerializer,
+            400: OpenApiResponse(description="Validation error or already a member."),
+            503: OpenApiResponse(description="Could not reach auth_service."),
+        },
+        tags=_PROJECT_TAG,
+    )
+    @action(detail=True, methods=["post"], url_path="invite")
+    def invite(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        """Invite a collaborator to this project by their email address."""
+        project = self.get_object()
+        email = (request.data.get("email") or "").strip().lower()
+        role = (request.data.get("role") or "VIEWER").strip().upper()
+
+        if not email:
+            return Response(
+                {"detail": "'email' is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # 1. Resolve userId from auth_service
+        auth_url = django_settings.AUTH_SERVICE_URL.rstrip("/")
+        try:
+            resp = http_requests.get(
+                f"{auth_url}/users/lookup/",
+                params={"email": email},
+                timeout=5,
+            )
+        except http_requests.RequestException as exc:
+            return Response(
+                {"detail": f"Could not reach auth_service: {exc}"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        user_exists = resp.status_code == 200
+        user_data = resp.json() if user_exists else {}
+        user_id = user_data.get("id")
+        username = user_data.get("username", email.split("@")[0]) if user_exists else email.split("@")[0]
+
+        frontend_url = django_settings.FRONTEND_URL.rstrip("/")
+
+        if user_exists:
+            if Membership.objects.filter(projectId=project, userId=user_id).exists():
+                return Response(
+                    {"detail": "This user is already a member of the project."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            membership = Membership.objects.create(
+                projectId=project,
+                userId=user_id,
+                role=role,
+            )
+
+            _send_existing_user_invite(
+                to_email=email,
+                username=username,
+                project_name=project.name,
+                role=role,
+                project_url=f"{frontend_url}/projects/{project.id}",
+                frontend_url=frontend_url,
+            )
+
+            return Response(
+                MembershipSerializer(membership).data,
+                status=status.HTTP_201_CREATED,
+            )
+        else:
+            register_url = (
+                f"{frontend_url}/signup"
+                f"?invite_project={project.id}"
+                f"&invite_role={role}"
+                f"&email={urllib.parse.quote(email)}"
+            )
+            _send_new_user_invite(
+                to_email=email,
+                project_name=project.name,
+                role=role,
+                register_url=register_url,
+                frontend_url=frontend_url,
+            )
+            return Response(
+                {"detail": "No account found. A registration invitation has been sent."},
+                status=status.HTTP_202_ACCEPTED,
+            )
+
 
 
 # ---------------------------------------------------------------------------

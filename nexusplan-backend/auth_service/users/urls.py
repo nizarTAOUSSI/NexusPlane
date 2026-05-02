@@ -4,6 +4,7 @@ from .views import (
     ChangePasswordView,
     LoginView,
     LogoutView,
+    LookupByEmailView,
     RegisterView,
     UpdateProfileView,
     GoogleLoginView,
@@ -16,5 +17,6 @@ urlpatterns = [
     path("logout/", LogoutView.as_view(), name="auth-logout"),
     path("profile/", UpdateProfileView.as_view(), name="auth-profile"),
     path("change-password/", ChangePasswordView.as_view(), name="auth-change-password"),
+    path("lookup/", LookupByEmailView.as_view(), name="auth-lookup-by-email"),
 ]
 

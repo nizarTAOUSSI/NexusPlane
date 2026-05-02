@@ -28,7 +28,7 @@ const NAV_ITEMS = [
     //   { id: 'insights', label: 'Insights', path: '/dashboard/insights' },
     // ],
   },
-  { id: 'projetcs', icon: IoFolderOutline, path: '/Projects', label: 'Projects' },
+  { id: 'projetcs', icon: IoFolderOutline, path: '/Projects', label: 'My Projects' },
 ];
 
 const MESSAGES = [
@@ -39,7 +39,7 @@ const MESSAGES = [
 
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
-  projects: 'Projects',
+  projects: 'My Projects',
   revenue: 'Revenue',
   insights: 'Insights',
   contracts: 'Contracts',
@@ -115,11 +115,6 @@ export const TopNavbar: React.FC = () => {
           <div className="nb-av nb-av--blue" title="Team member" />
           <div className="nb-av nb-av--amber" title="Team member" />
         </div>
-
-        <button className="nb-cta" onClick={() => { }}>
-          <Plus size={14} strokeWidth={2.5} />
-          <span>New Project</span>
-        </button>
 
         <div className="nb-user">
           <button className="nb-user-btn" onClick={() => setUserOpen(o => !o)}>
