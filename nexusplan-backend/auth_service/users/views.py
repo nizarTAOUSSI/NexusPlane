@@ -131,7 +131,8 @@ class GoogleLoginView(APIView):
         try:
             idinfo = id_token.verify_oauth2_token(
                 credential,
-                google_requests.Request()
+                google_requests.Request(),
+                django_settings.GOOGLE_CLIENT_ID,
             )
 
             email = idinfo.get("email")
