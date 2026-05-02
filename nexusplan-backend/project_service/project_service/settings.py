@@ -94,6 +94,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Project management service for NexusPlan.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
-    "SERVERS": [{"url": "/projects", "description": "Via API Gateway"}],
+    "SCHEMA_PATH_PREFIX": r"^/api",
+    "SERVERS": [{"url": "", "description": "Via API Gateway"}],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }

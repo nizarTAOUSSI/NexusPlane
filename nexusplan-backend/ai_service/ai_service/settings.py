@@ -94,6 +94,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "AI-powered features service for NexusPlan (Gemini integration).",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": r"^/api",
     "SERVERS": [{"url": "/ai", "description": "Via API Gateway"}],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }

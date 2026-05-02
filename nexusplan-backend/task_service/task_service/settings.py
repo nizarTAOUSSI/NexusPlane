@@ -94,6 +94,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "Task management service for NexusPlan.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "SCHEMA_PATH_PREFIX": r"^/api",
     "SERVERS": [{"url": "/tasks", "description": "Via API Gateway"}],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
