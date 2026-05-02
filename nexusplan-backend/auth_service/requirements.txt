@@ -8,3 +8,4 @@ redis
 python-dotenv
 gunicorn
 google-auth
+requests
