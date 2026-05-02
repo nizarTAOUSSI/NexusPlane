@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import logo from '../assets/logoNexus.png';
+import { Link } from 'react-router-dom';
 
 const LINKS = [
     { label: 'Fonctionnalités', href: '#' },
@@ -65,8 +66,8 @@ export default function Footer() {
                         </div>
                     </div>
 
-                    <a
-                        href="#"
+                    <Link
+                        to="/signup"
                         className="group relative inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold rounded-xl px-7 py-3.5 overflow-hidden transition-all duration-200 active:scale-95 shadow-[0_4px_20px_rgb(5,104,250,0.3)] hover:shadow-[0_4px_25px_rgb(5,104,250,0.5)] shrink-0"
                     >
                         <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent translate-x-full group-hover:translate-x-full transition-transform duration-500" />
@@ -76,7 +77,7 @@ export default function Footer() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
                         </span>
-                    </a>
+                    </Link>
                 </motion.div>
 
                 <div className="flex flex-col md:flex-row items-center justify-between gap-8 mb-12">

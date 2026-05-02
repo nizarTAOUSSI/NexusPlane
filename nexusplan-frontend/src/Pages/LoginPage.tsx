@@ -5,6 +5,7 @@ import logo from '../assets/logoNexus.png';
 import Animation from '../components/Animation';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
+import BackBtn from '../components/BackBtn';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -19,7 +20,7 @@ const LoginPage = () => {
             const response = await api.post('/auth/google-login/', { credential: credentialResponse.credential });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
-            navigate('/');
+            navigate('/dashboard');
         } catch (error) {
             console.error("Google login failed", error);
         } finally {
@@ -34,7 +35,7 @@ const LoginPage = () => {
             const response = await api.post('/auth/login/', { email, password });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
-            navigate('/');
+            navigate('/dashboard');
         } catch (error) {
             console.error("Login failed", error);
             alert("Identifiants incorrects");
@@ -53,6 +54,7 @@ const LoginPage = () => {
                     <p className="text-slate-500 text-lg max-w-sm leading-relaxed">
                         La première plateforme collaborative en temps réel propulsée par l'IA.
                     </p>
+                    <BackBtn link={"/"} />
                 </div>
 
                 <div className="flex-1 w-full flex items-center justify-center relative">
@@ -112,7 +114,6 @@ const LoginPage = () => {
                         </div>
                     </form>
 
-                    {/* Séparateur */}
                     <div className="relative mt-6 mb-6">
                         <div className="absolute inset-0 flex items-center">
                             <div className="w-full border-t border-gray-200"></div>

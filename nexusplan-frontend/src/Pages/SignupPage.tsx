@@ -5,6 +5,7 @@ import logo from '../assets/logoNexus.png';
 import Animation from '../components/Animation';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
+import BackBtn from '../components/BackBtn';
 
 const SignupPage = () => {
     const navigate = useNavigate();
@@ -20,7 +21,7 @@ const SignupPage = () => {
             const response = await api.post('/auth/google-login/', { credential: credentialResponse.credential });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
-            navigate('/');
+            navigate('/dashboard');
         } catch (error) {
             console.error("Google login failed", error);
         } finally {
@@ -138,6 +139,7 @@ const SignupPage = () => {
                     <p className="text-slate-500 text-lg max-w-sm leading-relaxed">
                         Rejoignez des milliers d'équipes performantes.
                     </p>
+                    <BackBtn link={"/"} />
                 </div>
 
                 <div className="flex-1 w-full flex items-center justify-center relative">

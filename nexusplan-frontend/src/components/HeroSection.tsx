@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import logo from '../assets/logoNexus.png';
 import Animation from './Animation';
+import { useNavigate } from 'react-router-dom';
 
 const HeroSection = () => {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const navigate = useNavigate();
 
   useEffect(() => {
     const handleMouseMove = (e: any) => {
@@ -82,13 +84,27 @@ const HeroSection = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.55, duration: 0.6 }}
+              className="flex gap-4 flex-col sm:flex-row"
             >
               <motion.button
+                onClick={() => { navigate('/signup'); }}
                 whileHover={{ scale: 1.02, y: -1 }}
                 whileTap={{ scale: 0.98 }}
                 className="w-full sm:w-auto px-8 sm:px-10 py-4 cursor-pointer bg-[#0568fa] hover:bg-[#0052d4] text-white text-lg font-medium rounded-2xl shadow-lg shadow-blue-500/20 transition-colors duration-200"
               >
                 Démarrer gratuitement
+              </motion.button>
+              <motion.button
+                onClick={() => navigate('/login')}
+                whileHover={{
+                  scale: 1.03,
+                  backgroundColor: "#ffffff",
+                  borderColor: "#0568fa"
+                }}
+                whileTap={{ scale: 0.97 }}
+                className="w-full sm:w-auto px-10 py-4.5 cursor-pointer bg-white/50 backdrop-blur-md border-2 border-gray-200 text-gray-800 hover:text-[#0568fa] text-lg font-semibold rounded-2xl transition-all duration-300 shadow-sm"
+              >
+                Accéder à l'espace
               </motion.button>
             </motion.div>
           </motion.div>
