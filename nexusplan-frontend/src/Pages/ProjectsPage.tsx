@@ -105,7 +105,7 @@ const ProjectsPage: React.FC = () => {
     setError('');
     try {
       const data = await projectsApi.list(
-        user?.id ? { ownerId: user.id } : undefined
+        user?.id ? { userId: user.id } : undefined
       );
       setProjects(data);
       setFiltered(data);
