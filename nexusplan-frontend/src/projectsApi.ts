@@ -17,7 +17,7 @@ export interface Membership {
   username: string | null;
   email: string | null;
   avatar: string | null;
-  role: 'VIEWER' | 'CONTRIBUTOR' | 'MANAGER';
+  role: 'OWNER' | 'VIEWER' | 'CONTRIBUTOR' | 'MANAGER';
   joinedAt: string;
 }
 

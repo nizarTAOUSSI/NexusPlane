@@ -1001,11 +1001,13 @@
   flex-shrink: 0;
 }
 
+.pd-badge--owner       { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
 .pd-badge--manager     { background: var(--accent-light); color: var(--accent); }
 .pd-badge--contributor { background: #ECFDF5; color: #065F46; }
 .pd-badge--viewer      { background: var(--surface-hover); color: var(--text-2); border: 1px solid var(--border); }
 
 .pd-role-icon { flex-shrink: 0; }
+.pd-role-icon--owner       { color: #D97706; }
 .pd-role-icon--manager     { color: var(--accent); }
 .pd-role-icon--contributor { color: #059669; }
 .pd-role-icon--viewer      { color: var(--text-3); }
@@ -1304,8 +1306,9 @@
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-lg);
   z-index: 50;
-  overflow: hidden;
   padding: 4px;
+  overflow-y: scroll;
+  max-height: 100px;
 }
 
 .invite-role-option {
@@ -1481,3 +1484,14 @@
   gap: 10px;
   margin-top: 8px;
 }
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+html {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+

@@ -577,11 +577,26 @@ class ProjectViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=["get"], url_path="members")
     def get_members(self, request: Request, pk=None) -> Response:  # noqa: ARG002
-        """Return all memberships enriched with username/email from Redis."""
+        """Return all memberships enriched with username/email from Redis.
+        The project owner is always prepended as the first entry with role OWNER.
+        """
         project = self.get_object()
         memberships = project.memberships.all()
 
         enriched = []
+
+        owner_info = _get_user_by_id(str(project.ownerId)) or {}
+        enriched.append({
+            "id":        f"owner-{project.ownerId}",
+            "projectId": str(project.id),
+            "userId":    str(project.ownerId),
+            "username":  owner_info.get("username") or None,
+            "email":     owner_info.get("email") or None,
+            "avatar":    owner_info.get("avatar") or None,
+            "role":      "OWNER",
+            "joinedAt":  project.createdAt.isoformat(),
+        })
+
         for m in memberships:
             user_info = _get_user_by_id(str(m.userId)) or {}
             enriched.append({

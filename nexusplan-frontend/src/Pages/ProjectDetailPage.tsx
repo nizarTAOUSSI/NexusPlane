@@ -4,10 +4,11 @@ import {
   ArrowLeft, Users, Calendar, Archive, Trash2,
   Clock, Crown, Eye, Edit3, RefreshCw, FolderOpen,
   UserPlus, X, Send, CheckCircle, AlertCircle, Mail,
-  ChevronDown,
+  ChevronDown, Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { projectsApi, type Project, type Membership } from '../projectsApi';
+import { projectsApi, type Project, type Membership, type InvitePayload } from '../projectsApi';
+import { useAuth } from '../context/AuthContext';
 
 const fmt = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', {
@@ -20,16 +21,18 @@ const fmtShort = (iso: string) =>
   });
 
 const roleIcon = (role: Membership['role']) => {
-  if (role === 'MANAGER')     return <Crown  size={13} className="pd-role-icon pd-role-icon--manager" />;
-  if (role === 'CONTRIBUTOR') return <Edit3  size={13} className="pd-role-icon pd-role-icon--contributor" />;
-  return                              <Eye    size={13} className="pd-role-icon pd-role-icon--viewer" />;
+  if (role === 'OWNER') return <Shield size={13} className="pd-role-icon pd-role-icon--owner" />;
+  if (role === 'MANAGER') return <Crown size={13} className="pd-role-icon pd-role-icon--manager" />;
+  if (role === 'CONTRIBUTOR') return <Edit3 size={13} className="pd-role-icon pd-role-icon--contributor" />;
+  return <Eye size={13} className="pd-role-icon pd-role-icon--viewer" />;
 };
 
 const roleClass = (role: Membership['role']) => ({
-  MANAGER:     'pd-badge pd-badge--manager',
+  OWNER: 'pd-badge pd-badge--owner',
+  MANAGER: 'pd-badge pd-badge--manager',
   CONTRIBUTOR: 'pd-badge pd-badge--contributor',
-  VIEWER:      'pd-badge pd-badge--viewer',
-}[role]);
+  VIEWER: 'pd-badge pd-badge--viewer',
+}[role] ?? 'pd-badge pd-badge--viewer');
 
 
 type InviteStatus = 'idle' | 'loading' | 'success_existing' | 'success_new' | 'error';
@@ -41,21 +44,21 @@ interface InviteModalProps {
   onMemberAdded: () => void;
 }
 
-const ROLES: Array<{ value: Membership['role']; label: string; desc: string }> = [
-  { value: 'VIEWER',      label: 'Viewer',      desc: 'Can view project only' },
+const ROLES: Array<{ value: NonNullable<InvitePayload['role']>; label: string; desc: string }> = [
+  { value: 'VIEWER', label: 'Viewer', desc: 'Can view project only' },
   { value: 'CONTRIBUTOR', label: 'Contributor', desc: 'Can edit tasks & content' },
-  { value: 'MANAGER',     label: 'Manager',     desc: 'Full project control' },
+  { value: 'MANAGER', label: 'Manager', desc: 'Full project control' },
 ];
 
 const InviteModal: React.FC<InviteModalProps> = ({
   projectId, projectName, onClose, onMemberAdded,
 }) => {
-  const [email,         setEmail]         = useState('');
-  const [role,          setRole]          = useState<Membership['role']>('VIEWER');
-  const [roleOpen,      setRoleOpen]      = useState(false);
-  const [status,        setStatus]        = useState<InviteStatus>('idle');
-  const [message,       setMessage]       = useState('');
-  const roleRef  = useRef<HTMLDivElement>(null);
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<NonNullable<InvitePayload['role']>>('VIEWER');
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [status, setStatus] = useState<InviteStatus>('idle');
+  const [message, setMessage] = useState('');
+  const roleRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -92,7 +95,7 @@ const InviteModal: React.FC<InviteModalProps> = ({
       if (result?.id) {
         setStatus('success_existing');
         setMessage(`${trimmed} has been added to "${projectName}". An invitation email has been sent.`);
-        onMemberAdded(); 
+        onMemberAdded();
       } else {
         setStatus('success_new');
         setMessage(`No account found for ${trimmed}. A registration invitation has been sent to their email.`);
@@ -291,15 +294,16 @@ const InviteModal: React.FC<InviteModalProps> = ({
 
 
 const ProjectDetailPage: React.FC = () => {
-  const { id }       = useParams<{ id: string }>();
-  const navigate     = useNavigate();
-  const [project,   setProject]   = useState<Project | null>(null);
-  const [members,   setMembers]   = useState<Membership[]>([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState('');
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [project, setProject] = useState<Project | null>(null);
+  const [members, setMembers] = useState<Membership[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [archiving, setArchiving] = useState(false);
-  const [deleting,  setDeleting]  = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const { user } = useAuth();
 
   const fetchAll = async () => {
     if (!id) return;
@@ -367,7 +371,7 @@ const ProjectDetailPage: React.FC = () => {
     </div>
   );
 
-  const isActive   = project.status === 'ACTIVE';
+  const isActive = project.status === 'ACTIVE';
   const isArchived = project.status === 'ARCHIVED';
 
   return (
@@ -407,7 +411,7 @@ const ProjectDetailPage: React.FC = () => {
             <button
               className="pd-action-btn pd-action-btn--warning"
               onClick={handleArchive}
-              disabled={archiving}
+              disabled={archiving || project.ownerId !== user?.id}
             >
               <Archive size={15} />
               {archiving ? 'Archiving…' : 'Archive'}
@@ -416,7 +420,7 @@ const ProjectDetailPage: React.FC = () => {
           <button
             className="pd-action-btn pd-action-btn--danger"
             onClick={handleDelete}
-            disabled={deleting}
+            disabled={deleting || project.ownerId !== user?.id}
           >
             <Trash2 size={15} />
             {deleting ? 'Deleting…' : 'Delete'}
@@ -465,7 +469,6 @@ const ProjectDetailPage: React.FC = () => {
             Members
           </h2>
 
-          {/* Right side: refresh + add member */}
           <div className="pd-section-head-actions">
             <button className="pd-section-refresh" onClick={fetchAll} title="Refresh members">
               <RefreshCw size={14} />
@@ -528,7 +531,6 @@ const ProjectDetailPage: React.FC = () => {
 
       <p className="pd-id-hint">Project ID: <code>{project.id}</code></p>
 
-      {/* Invite Modal */}
       <AnimatePresence>
         {showInvite && (
           <InviteModal
