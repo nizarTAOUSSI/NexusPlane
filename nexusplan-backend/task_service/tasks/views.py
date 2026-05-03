@@ -152,7 +152,8 @@ class TaskViewSet(
         if project_id:
             qs = qs.filter(projectId=project_id)
         if assignee_id:
-            qs = qs.filter(assigneeId=assignee_id)
+            # JSONField array — filter tasks where the UUID is in the list
+            qs = qs.filter(assigneeIds__contains=[assignee_id])
         if creator_id:
             qs = qs.filter(creatorId=creator_id)
         if task_status:
@@ -227,6 +228,6 @@ class TaskViewSet(
         task = self.get_object()
         serializer = TaskAssignSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        task.assigneeId = serializer.validated_data.get("assigneeId")
-        task.save(update_fields=["assigneeId", "updatedAt"])
+        task.assigneeIds = [str(uid) for uid in serializer.validated_data["assigneeIds"]]
+        task.save(update_fields=["assigneeIds", "updatedAt"])
         return Response(TaskSerializer(task).data, status=status.HTTP_200_OK)

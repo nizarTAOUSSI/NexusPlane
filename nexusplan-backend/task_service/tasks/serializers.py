@@ -15,7 +15,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "description",
             "status",
             "priority",
-            "assigneeId",
+            "assigneeIds",
             "creatorId",
             "dueDate",
             "createdAt",
@@ -40,7 +40,7 @@ class TaskCreateSerializer(serializers.ModelSerializer):
             "description",
             "status",
             "priority",
-            "assigneeId",
+            "assigneeIds",
             "dueDate",
         ]
 
@@ -69,10 +69,9 @@ class TaskUpdateSerializer(serializers.ModelSerializer):
             "description",
             "status",
             "priority",
-            "assigneeId",
+            "assigneeIds",
             "dueDate",
         ]
-
 
 
 class TaskStatusUpdateSerializer(serializers.Serializer):
@@ -82,10 +81,15 @@ class TaskStatusUpdateSerializer(serializers.Serializer):
 
 
 class TaskAssignSerializer(serializers.Serializer):
-    """Body accepted by the ``assign`` custom action."""
+    """
+    Body accepted by the ``assign`` custom action.
+    Send the complete desired list — it replaces the current assignees.
+    Send [] to unassign everyone.
+    """
 
-    assigneeId = serializers.UUIDField(
-        allow_null=True,
-        required=False,
-        help_text="UUID of the user to assign. Send null to unassign.",
+    assigneeIds = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=True,
+        required=True,
+        help_text="Full list of user UUIDs to assign. Send [] to unassign all.",
     )

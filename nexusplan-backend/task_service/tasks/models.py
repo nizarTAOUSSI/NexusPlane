@@ -53,11 +53,11 @@ class Task(models.Model):
         default=TaskPriority.MEDIUM,
     )
 
-    assigneeId = models.UUIDField(
-        null=True,
+    # List of user UUIDs assigned to this task (stored as JSON array)
+    assigneeIds = models.JSONField(
+        default=list,
         blank=True,
-        db_index=True,
-        help_text="UUID of the assigned member (from auth_service). Null means unassigned.",
+        help_text="List of user UUIDs assigned to this task (from auth_service).",
     )
 
     creatorId = models.UUIDField(
@@ -79,7 +79,6 @@ class Task(models.Model):
         indexes = [
             models.Index(fields=["projectId", "status"],   name="idx_task_project_status"),
             models.Index(fields=["projectId", "priority"], name="idx_task_project_priority"),
-            models.Index(fields=["assigneeId", "status"],  name="idx_task_assignee_status"),
         ]
 
     def __str__(self) -> str:
