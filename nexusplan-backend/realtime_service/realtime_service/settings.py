@@ -65,11 +65,14 @@ ASGI_APPLICATION = "realtime_service.asgi.application"
 # Database — configured via DATABASE_URL environment variable
 # ---------------------------------------------------------------------------
 
+_db_url = (
+    os.environ.get("REALTIME_DATABASE_URL")
+    or os.environ.get("DATABASE_URL")
+    or "sqlite:///db.sqlite3"
+)
+
 DATABASES = {
-    "default": dj_database_url.config(
-        default=os.environ.get("DATABASE_URL", "sqlite:///db.sqlite3"),
-        conn_max_age=600,
-    )
+    "default": dj_database_url.parse(_db_url, conn_max_age=600)
 }
 
 # ---------------------------------------------------------------------------
