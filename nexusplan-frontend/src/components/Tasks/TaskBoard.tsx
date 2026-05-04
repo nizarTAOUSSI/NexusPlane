@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -9,10 +9,11 @@ import { taskService } from '../../services/taskService';
 import { projectsApi, type Project } from '../../projectsApi';
 import { useAuth } from '../../context/AuthContext';
 import { type Task, TaskStatus, type UserMeta } from '../../types/task';
+import { useProjectWebSocket, type WSEvent } from '../../hooks/useProjectWebSocket';
 import TaskCard from './TaskCard';
 import CreateTaskModal from './CreateTaskModal';
 import EditTaskModal from './EditTaskModal';
-
+import OnlinePresence from './OnlinePresence';
 
 interface ColumnDef {
   id: TaskStatus;
@@ -22,10 +23,10 @@ interface ColumnDef {
 }
 
 const COLUMNS: ColumnDef[] = [
-  { id: TaskStatus.TODO,        label: 'To Do',       icon: <Circle size={15} />,         accent: '#6366F1' },
-  { id: TaskStatus.IN_PROGRESS, label: 'In Progress',  icon: <GitPullRequest size={15} />, accent: '#F59E0B' },
-  { id: TaskStatus.REVIEW,      label: 'Review',       icon: <Eye size={15} />,            accent: '#8B5CF6' },
-  { id: TaskStatus.DONE,        label: 'Done',         icon: <CheckCircle2 size={15} />,   accent: '#10B981' },
+  { id: TaskStatus.TODO,        label: 'To Do',      icon: <Circle size={15} />,         accent: '#6366F1' },
+  { id: TaskStatus.IN_PROGRESS, label: 'In Progress', icon: <GitPullRequest size={15} />, accent: '#F59E0B' },
+  { id: TaskStatus.REVIEW,      label: 'Review',      icon: <Eye size={15} />,            accent: '#8B5CF6' },
+  { id: TaskStatus.DONE,        label: 'Done',        icon: <CheckCircle2 size={15} />,   accent: '#10B981' },
 ];
 
 
@@ -33,42 +34,83 @@ interface TaskBoardProps {
   userMap?: Record<string, UserMeta>;
 }
 
+
 const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [projects,    setProjects]    = useState<Project[]>([]);
   const [projectId,   setProjectId]   = useState<string | null>(null);
   const [projLoading, setProjLoading] = useState(true);
   const [selectOpen,  setSelectOpen]  = useState(false);
 
-  // Members for assignee picker + avatar display
-  const [members,  setMembers]  = useState<UserMeta[]>([]);
-  const [userMap,  setUserMap]  = useState<Record<string, UserMeta>>(externalUserMap);
+  const [members, setMembers] = useState<UserMeta[]>([]);
+  const [userMap, setUserMap] = useState<Record<string, UserMeta>>(externalUserMap);
 
-  const [tasks,     setTasks]     = useState<Task[]>([]);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState('');
+  const [tasks,        setTasks]        = useState<Task[]>([]);
+  const [loading,      setLoading]      = useState(false);
+  const [error,        setError]        = useState('');
   const [showModal,    setShowModal]    = useState(false);
   const [editingTask,  setEditingTask]  = useState<Task | null>(null);
+
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+
+  const handleWsEvent = useCallback((event: WSEvent) => {
+    switch (event.type) {
+      case 'task_moved':
+        if (event.taskId && event.status) {
+          setTasks(prev =>
+            prev.map(t => t.id === event.taskId ? { ...t, status: event.status! } : t)
+          );
+        }
+        break;
+
+      case 'task_created': {
+        const incoming = event.payload?.task as Task | undefined;
+        if (incoming?.id) {
+          setTasks(prev => prev.find(t => t.id === incoming.id) ? prev : [incoming, ...prev]);
+        }
+        break;
+      }
+
+      case 'task_updated': {
+        const incoming = event.payload?.task as Task | undefined;
+        if (incoming?.id) {
+          setTasks(prev => prev.map(t => t.id === incoming.id ? incoming : t));
+        }
+        break;
+      }
+
+      case 'task_deleted':
+        if (event.taskId) {
+          setTasks(prev => prev.filter(t => t.id !== event.taskId));
+        }
+        break;
+    }
+  }, []);
+
+  const { isConnected, onlineUserIds, send } = useProjectWebSocket({
+    projectId,
+    token,
+    currentUserId: user?.id ?? null,
+    onEvent: handleWsEvent,
+  });
 
   useEffect(() => {
     const fetchProjects = async () => {
       setProjLoading(true);
       try {
         const params = user?.id ? { userId: user.id } : undefined;
-        const data = await projectsApi.list(params);
+        const data   = await projectsApi.list(params);
         const active = data.filter(p => p.status === 'ACTIVE');
         setProjects(active);
         if (active.length > 0) setProjectId(active[0].id);
-      } catch {
-      } finally {
-        setProjLoading(false);
-      }
+      } catch { }
+      finally { setProjLoading(false); }
     };
     fetchProjects();
   }, [user?.id]);
 
-  // When project changes, load its members for avatar + assignee picker
   useEffect(() => {
     if (!projectId) return;
     projectsApi.getMembers(projectId).then(memberships => {
@@ -83,7 +125,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
       meta.forEach(m => { map[m.id] = m; });
       setUserMap(map);
     }).catch(() => {});
-  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [projectId]); 
 
   const loadTasks = useCallback(async () => {
     if (!projectId) return;
@@ -116,6 +158,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
 
     try {
       await taskService.updateTaskStatus(draggableId, newStatus);
+      send({ type: 'task_moved', taskId: draggableId, status: newStatus });
     } catch {
       setTasks(prevTasks);
     }
@@ -125,23 +168,26 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
     if (!user?.id) return;
     const created = await taskService.createTask(payload, user.id);
     setTasks(prev => [created, ...prev]);
+    send({ type: 'task_created', payload: { task: created } });
   };
 
-  const handleEdit = (task: Task) => setEditingTask(task);
+  const handleEdit   = (task: Task) => setEditingTask(task);
 
   const handleUpdate = async (payload: Parameters<typeof taskService.updateTask>[1]) => {
     if (!editingTask) return;
     const updated = await taskService.updateTask(editingTask.id, payload);
     setTasks(prev => prev.map(t => t.id === updated.id ? updated : t));
+    send({ type: 'task_updated', taskId: updated.id, payload: { task: updated } });
   };
 
   const handleDelete = async (taskId: string) => {
     await taskService.deleteTask(taskId);
     setTasks(prev => prev.filter(t => t.id !== taskId));
+    send({ type: 'task_deleted', taskId });
   };
-  
-  const byStatus = (colId: TaskStatus) => tasks.filter(t => t.status === colId);
-  const selectedProject = projects.find(p => p.id === projectId);
+
+  const byStatus         = (colId: TaskStatus) => tasks.filter(t => t.status === colId);
+  const selectedProject  = projects.find(p => p.id === projectId);
 
   if (projLoading) {
     return (
@@ -168,9 +214,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
       <div className="kb-toolbar">
         <div className="kb-proj-select" onClick={() => setSelectOpen(o => !o)}>
           <FolderOpen size={15} className="kb-proj-icon" />
-          <span className="kb-proj-name">
-            {selectedProject?.name ?? 'Select project'}
-          </span>
+          <span className="kb-proj-name">{selectedProject?.name ?? 'Select project'}</span>
           <ChevronDown
             size={14}
             className={`kb-proj-chevron ${selectOpen ? 'kb-proj-chevron--open' : ''}`}
@@ -206,6 +250,15 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
             <RefreshCw size={14} />
           </button>
         )}
+
+        <div className="kb-toolbar-right">
+          <OnlinePresence
+            isConnected={isConnected}
+            onlineUserIds={onlineUserIds}
+            userMap={userMap}
+            currentUserId={user?.id ?? null}
+          />
+        </div>
       </div>
 
       {loading ? (
