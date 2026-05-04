@@ -152,7 +152,6 @@ class TaskViewSet(
         if project_id:
             qs = qs.filter(projectId=project_id)
         if assignee_id:
-            # JSONField array — filter tasks where the UUID is in the list
             qs = qs.filter(assigneeIds__contains=[assignee_id])
         if creator_id:
             qs = qs.filter(creatorId=creator_id)

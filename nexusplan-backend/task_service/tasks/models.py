@@ -53,7 +53,6 @@ class Task(models.Model):
         default=TaskPriority.MEDIUM,
     )
 
-    # List of user UUIDs assigned to this task (stored as JSON array)
     assigneeIds = models.JSONField(
         default=list,
         blank=True,

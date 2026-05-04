@@ -8,6 +8,7 @@ import ProjectsPage from '../Pages/ProjectsPage';
 import ProjectDetailPage from '../Pages/ProjectDetailPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import ProtectedRoute from './ProtectedRoute';
+import TaskBoard from '../components/Tasks/TaskBoard';
 
 export const router = createBrowserRouter([
   {
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
           { path: '/dashboard/contracts', element: <DashboardPage /> },
           { path: '/dashboard/payments', element: <DashboardPage /> },
           { path: '/dashboard/notifications', element: <DashboardPage /> },
+          { path: '/tasks', element: <TaskBoard /> },
         ],
       },  
     ],

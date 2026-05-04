@@ -88,7 +88,7 @@
   --accent-medium:   rgba(99,102,241,0.15);
   --accent-grad:     linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
   --accent-glow:     0 4px 16px rgba(99,102,241,0.35);
-  --bg:              #fffff;
+  --bg:              #f8f8fb;
   --surface:         #FFFFFF;
   --surface-hover:   #F7F7FC;
   --text-1:   #0D0D1A;
@@ -118,7 +118,10 @@
   content: '';
   position: fixed;
   inset: 0;
-  background-image: radial-gradient(circle, rgba(99,102,241,0.05) 1px, transparent 1px);
+  opacity: 0.7;
+  background-image:
+    linear-gradient(to right,  rgba(128,128,128,0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(128,128,128,0.07) 1px, transparent 1px);
   background-size: 28px 28px;
   pointer-events: none;
   z-index: 0;
@@ -1495,3 +1498,732 @@ html {
 }
 
 
+
+/* ==========================================================================
+   TASK BOARD — Kanban (kb-*) + TaskCard (tc-*) + CreateTaskModal (ctm-*)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Board layout
+   -------------------------------------------------------------------------- */
+
+.kb-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(260px, 1fr));
+  gap: 16px;
+  align-items: start;
+  padding: 4px 2px 24px;
+  min-height: 400px;
+  overflow-x: auto;
+}
+
+@media (max-width: 1100px) {
+  .kb-board { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .kb-board { grid-template-columns: 1fr; }
+}
+
+.kb-column {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  overflow: hidden;
+}
+
+.kb-col-header {
+  padding: 14px 14px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kb-col-title-row { display: flex; align-items: center; gap: 7px; }
+.kb-col-icon      { display: flex; align-items: center; }
+
+.kb-col-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-1);
+  letter-spacing: -0.1px;
+}
+
+.kb-col-count {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  min-width: 22px;
+  text-align: center;
+}
+
+.kb-col-bar {
+  height: 3px;
+  margin: 0 14px 10px;
+  border-radius: 999px;
+  opacity: 0.75;
+}
+
+.kb-cards {
+  flex: 1;
+  padding: 4px 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 80px;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  transition: background 0.2s;
+}
+
+.kb-cards--over { background: var(--accent-light); }
+
+.kb-empty {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-3);
+  padding: 24px 0;
+  font-style: italic;
+}
+
+.kb-add-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  background: var(--surface-hover);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.kb-add-btn:hover { background: var(--accent); color: #fff; }
+
+.kb-loading, .kb-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 64px 24px;
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+.kb-spin { animation: kb-rotate 0.9s linear infinite; }
+@keyframes kb-rotate { to { transform: rotate(360deg); } }
+
+.kb-retry {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-1);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.kb-retry:hover { background: var(--surface-hover); }
+
+/* --------------------------------------------------------------------------
+   TaskCard (tc-*)
+   -------------------------------------------------------------------------- */
+
+.tc-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 12px 13px;
+  cursor: grab;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.1s;
+  user-select: none;
+}
+
+.tc-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.12);
+}
+
+.tc-card--dragging {
+  box-shadow: 0 12px 32px rgba(0,0,0,0.22);
+  transform: rotate(1.5deg) scale(1.02);
+  cursor: grabbing;
+  border-color: var(--accent);
+}
+
+.tc-card-header { display: flex; align-items: center; justify-content: space-between; }
+
+.tc-card-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.tc-card-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  margin: 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.tc-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.tc-priority {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.tc-priority--urgent { background: #FEE2E2; color: #B91C1C; }
+.tc-priority--high   { background: #FEF3C7; color: #92400E; }
+.tc-priority--medium { background: #E0F2FE; color: #0369A1; }
+.tc-priority--low    { background: #ECFDF5; color: #065F46; }
+
+.tc-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.tc-due--overdue { color: #EF4444; font-weight: 600; }
+
+.tc-assignee { display: flex; align-items: center; }
+
+.tc-assignee-av {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border);
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tc-assignee-av--initials { background: linear-gradient(135deg, var(--accent), #8B5CF6); color: #fff; }
+.tc-assignee-av--unknown  { background: var(--surface-hover); color: var(--text-3); }
+
+/* --------------------------------------------------------------------------
+   CreateTaskModal (ctm-*)
+   -------------------------------------------------------------------------- */
+
+.ctm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.ctm-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-xl);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.28);
+  overflow: hidden;
+}
+
+.ctm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.ctm-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-1);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.ctm-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: var(--surface-hover);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.ctm-close:hover { background: var(--border); }
+
+.ctm-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 24px 24px;
+}
+
+.ctm-field { display: flex; flex-direction: column; gap: 6px; }
+.ctm-field--half { flex: 1; }
+.ctm-row { display: flex; gap: 16px; }
+
+.ctm-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+}
+
+.ctm-input,
+.ctm-textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 9px 12px;
+  font-size: 13.5px;
+  color: var(--text-1);
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ctm-input:focus,
+.ctm-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.ctm-textarea { resize: vertical; min-height: 72px; }
+
+.ctm-priority-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.ctm-priority-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  opacity: 0.6;
+}
+.ctm-priority-btn--active { opacity: 1; border-color: currentColor; }
+
+.ctm-dot--low    { background: #ECFDF5; color: #065F46; }
+.ctm-dot--medium { background: #E0F2FE; color: #0369A1; }
+.ctm-dot--high   { background: #FEF3C7; color: #92400E; }
+.ctm-dot--urgent { background: #FEE2E2; color: #B91C1C; }
+
+.ctm-error {
+  font-size: 12.5px;
+  color: #EF4444;
+  margin: 0;
+  padding: 8px 12px;
+  background: #FEF2F2;
+  border-radius: var(--r-sm);
+  border: 1px solid #FCA5A5;
+}
+
+.ctm-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+.ctm-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 20px;
+  border-radius: var(--r-md);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+}
+
+.ctm-btn--cancel {
+  background: var(--surface-hover);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.ctm-btn--cancel:hover { background: var(--border); }
+
+.ctm-btn--submit {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.35);
+}
+.ctm-btn--submit:hover  { filter: brightness(1.08); }
+.ctm-btn--submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ctm-spin { animation: kb-rotate 0.9s linear infinite; }
+
+/* --------------------------------------------------------------------------
+   TaskBoard toolbar & project selector (kb-toolbar, kb-proj-*)
+   -------------------------------------------------------------------------- */
+
+.kb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.kb-proj-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  user-select: none;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  transition: border-color 0.15s, box-shadow 0.15s;
+  min-width: 220px;
+}
+
+.kb-proj-select:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.kb-proj-icon  { color: var(--accent); flex-shrink: 0; }
+.kb-proj-name  { flex: 1; }
+
+.kb-proj-chevron {
+  flex-shrink: 0;
+  color: var(--text-3);
+  transition: transform 0.2s;
+}
+.kb-proj-chevron--open { transform: rotate(180deg); }
+
+.kb-proj-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.kb-proj-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+}
+
+.kb-proj-option:hover          { background: var(--surface-hover); }
+.kb-proj-option--active        { background: var(--accent-light); color: var(--accent); font-weight: 700; }
+
+.kb-refresh-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+.kb-refresh-btn:hover { background: var(--surface-hover); color: var(--accent); }
+
+/* --------------------------------------------------------------------------
+   Avatar stack on TaskCard (tc-avatar-stack, tc-av)
+   -------------------------------------------------------------------------- */
+
+.tc-avatar-stack {
+  display: flex;
+  flex-direction: row-reverse; /* rightmost = last in DOM, visually first */
+  align-items: center;
+}
+
+.tc-av {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid var(--surface);
+  margin-left: -7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--surface-hover);
+  color: var(--text-2);
+}
+
+.tc-avatar-stack .tc-av:last-child { margin-left: 0; }
+
+.tc-av-img { width: 100%; height: 100%; object-fit: cover; }
+
+.tc-av-initials {
+  background: linear-gradient(135deg, var(--accent), #8B5CF6);
+  color: #fff;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.tc-av--extra {
+  background: var(--border);
+  color: var(--text-2);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+/* --------------------------------------------------------------------------
+   Member picker in CreateTaskModal (ctm-members-*)
+   -------------------------------------------------------------------------- */
+
+.ctm-assignee-count {
+  margin-left: 8px;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ctm-members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 4px;
+}
+
+.ctm-member-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  width: 100%;
+}
+
+.ctm-member-btn:hover            { background: var(--surface-hover); }
+.ctm-member-btn--selected        { background: var(--accent-light); }
+
+.ctm-member-av {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-hover);
+}
+
+.ctm-member-av-img  { width: 100%; height: 100%; object-fit: cover; }
+
+.ctm-member-av-init {
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent), #8B5CF6);
+}
+
+.ctm-member-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ctm-member-check { color: var(--accent); margin-left: auto; flex-shrink: 0; }
+
+/* --------------------------------------------------------------------------
+   TaskCard action buttons & delete confirmation (tc-actions, tc-del-*)
+   -------------------------------------------------------------------------- */
+
+.tc-card-header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Action buttons — hidden by default, appear on card hover */
+.tc-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.tc-card:hover .tc-actions { opacity: 1; }
+.tc-card--confirming .tc-actions { opacity: 0; pointer-events: none; }
+
+.tc-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  background: transparent;
+  color: var(--text-3);
+}
+
+.tc-action-btn--edit:hover   { background: var(--accent-light); color: var(--accent); }
+.tc-action-btn--delete:hover { background: #FEE2E2; color: #DC2626; }
+
+/* Delete confirmation overlay */
+.tc-del-confirm {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--r-md);
+  background: rgba(255,255,255,0.97);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  z-index: 10;
+  border: 1.5px solid #FCA5A5;
+}
+
+.tc-del-msg {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #DC2626;
+  margin: 0;
+}
+
+.tc-del-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tc-del-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.tc-del-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.tc-del-btn--cancel {
+  background: var(--surface-hover);
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+.tc-del-btn--cancel:hover:not(:disabled) { background: var(--border); }
+
+.tc-del-btn--confirm {
+  background: #DC2626;
+  color: #fff;
+}
+.tc-del-btn--confirm:hover:not(:disabled) { background: #B91C1C; }
+
+/* Card confirming state */
+.tc-card--confirming {
+  border-color: #FCA5A5;
+  position: relative;
+}

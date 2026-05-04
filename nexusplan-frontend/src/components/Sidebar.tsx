@@ -15,6 +15,7 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { IoFolderOutline } from 'react-icons/io5';
+import { LuKanban } from 'react-icons/lu';
 
 const NAV_ITEMS = [
   {
@@ -29,6 +30,8 @@ const NAV_ITEMS = [
     // ],
   },
   { id: 'projetcs', icon: IoFolderOutline, path: '/Projects', label: 'My Projects' },
+  { id: 'tasks', icon: LuKanban, path: '/Tasks', label: 'Tasks' },
+
 ];
 
 const MESSAGES = [
@@ -207,10 +210,10 @@ const Sidebar: React.FC = () => {
         <motion.button
           className="sb-toggle absolute p-1 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent"
           animate={{
-            x: collapsed ? 5 : 200, 
-            y: collapsed ? 50 : 0  
+            x: collapsed ? 5 : 200,
+            y: collapsed ? 50 : 0
           }}
-          initial={false} 
+          initial={false}
           onClick={() => setCollapsed(c => !c)}
           title={collapsed ? 'Expand' : 'Collapse'}
           transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
