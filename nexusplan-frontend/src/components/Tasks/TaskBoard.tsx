@@ -3,18 +3,19 @@ import { DragDropContext, Droppable, type DropResult } from '@hello-pangea/dnd';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   CheckCircle2, Circle, ChevronDown, Eye, FolderOpen,
-  GitPullRequest, Loader2, Plus, RefreshCw,
+  GitPullRequest, Loader2, Plus, RefreshCw, Sparkles,
 } from 'lucide-react';
 import { taskService } from '../../services/taskService';
 import { projectsApi, type Project } from '../../projectsApi';
 import { useAuth } from '../../context/AuthContext';
 import { useRealtime } from '../../context/RealtimeContext';
-import { type Task, TaskStatus, type UserMeta } from '../../types/task';
+import { type CreateTaskPayload, type Task, TaskStatus, type UserMeta } from '../../types/task';
 import { useProjectWebSocket, type WSEvent } from '../../hooks/useProjectWebSocket';
 import TaskCard from './TaskCard';
 import CreateTaskModal from './CreateTaskModal';
 import EditTaskModal from './EditTaskModal';
 import OnlinePresence from './OnlinePresence';
+import AIGenerateModal from './AIGenerateModal';
 
 interface ColumnDef {
   id: TaskStatus;
@@ -50,7 +51,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showModal, setShowModal] = useState(false);
+  const [showModal,  setShowModal]  = useState(false);
+  const [showAI,     setShowAI]     = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const tasksRef = useRef(tasks);
@@ -292,6 +294,17 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
           </button>
         )}
 
+        {projectId && (
+          <button
+            className="kb-ai-btn"
+            onClick={() => setShowAI(true)}
+            title="Generate tasks with AI"
+          >
+            <Sparkles size={14} />
+            <span>Generate with AI</span>
+          </button>
+        )}
+
         <div className="kb-toolbar-right">
           <OnlinePresence
             isConnected={isConnected}
@@ -392,6 +405,24 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
           onUpdated={handleUpdate}
         />
       )}
+
+      <AnimatePresence>
+        {showAI && projectId && user?.id && (
+          <AIGenerateModal
+            projectId={projectId}
+            projectName={selectedProject?.name}
+            userId={user.id}
+            onClose={() => setShowAI(false)}
+            onImport={async (aiTasks: CreateTaskPayload[]) => {
+              for (const payload of aiTasks) {
+                const created = await taskService.createTask(payload, user.id);
+                setTasks(prev => [created, ...prev]);
+                send({ type: 'task_created', payload: { task: created } });
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
     </>
   );
 };
