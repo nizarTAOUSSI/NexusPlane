@@ -175,8 +175,9 @@ def _call_openai_compatible_api(description: str, api_key: str, base_url: str, m
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://nexusplane.duckdns.org", # Required by OpenRouter
-        "X-Title": "NexusPlan"
+        "HTTP-Referer": "https://nexusplane.duckdns.org",
+        "X-Title": "NexusPlan",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
     data = {
         "model": model,
@@ -223,7 +224,7 @@ def _generate_with_openrouter(description: str) -> TaskGenerationResult:
         description, 
         api_key, 
         "https://openrouter.ai/api/v1", 
-        os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3-8b-instruct:free")
+        os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
     )
 
 # ---------------------------------------------------------------------------
@@ -234,34 +235,29 @@ def generate_tasks_from_description(description: str) -> TaskGenerationResult:
     """
     Main entry-point. Implements a fallback strategy:
     Gemini (Main logic) -> Groq (Fast response) -> OpenRouter (Fallback)
-
-    Args:
-        description: Free-text project or feature description from the user.
-
-    Returns:
-        TaskGenerationResult with a validated list of GeneratedTask objects.
-
-    Raises:
-        ValueError: All AI providers failed.
     """
     logger.info("generate_tasks_from_description called | desc_len=%d", len(description))
+    errors = []
 
     try:
         logger.info("Trying Gemini provider...")
         return _generate_with_gemini(description)
     except Exception as e:
         logger.warning("Gemini failed: %s", e)
+        errors.append(f"Gemini: {e}")
 
     try:
         logger.info("Trying Groq provider...")
         return _generate_with_groq(description)
     except Exception as e:
         logger.warning("Groq failed: %s", e)
+        errors.append(f"Groq: {e}")
 
     try:
         logger.info("Trying OpenRouter provider...")
         return _generate_with_openrouter(description)
     except Exception as e:
         logger.error("OpenRouter failed: %s", e)
+        errors.append(f"OpenRouter: {e}")
 
-    raise ValueError("All AI providers (Gemini, Groq, OpenRouter) failed or are missing API keys.")
+    raise ValueError("All AI providers failed. Details: " + " | ".join(errors))
