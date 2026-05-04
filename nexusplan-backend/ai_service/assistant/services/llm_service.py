@@ -213,7 +213,7 @@ def _generate_with_groq(description: str) -> TaskGenerationResult:
         description, 
         api_key, 
         "https://api.groq.com/openai/v1", 
-        os.environ.get("GROQ_MODEL", "llama3-8b-8192")
+        os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
     )
 
 def _generate_with_openrouter(description: str) -> TaskGenerationResult:
@@ -224,7 +224,7 @@ def _generate_with_openrouter(description: str) -> TaskGenerationResult:
         description, 
         api_key, 
         "https://openrouter.ai/api/v1", 
-        os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3.3-70b-instruct:free")
+        os.environ.get("OPENROUTER_MODEL", "nousresearch/hermes-3-llama-3.1-405b:free")
     )
 
 # ---------------------------------------------------------------------------
