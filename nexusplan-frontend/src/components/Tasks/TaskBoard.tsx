@@ -24,10 +24,10 @@ interface ColumnDef {
 }
 
 const COLUMNS: ColumnDef[] = [
-  { id: TaskStatus.TODO,        label: 'To Do',      icon: <Circle size={15} />,         accent: '#6366F1' },
+  { id: TaskStatus.TODO, label: 'To Do', icon: <Circle size={15} />, accent: '#6366F1' },
   { id: TaskStatus.IN_PROGRESS, label: 'In Progress', icon: <GitPullRequest size={15} />, accent: '#F59E0B' },
-  { id: TaskStatus.REVIEW,      label: 'Review',      icon: <Eye size={15} />,            accent: '#8B5CF6' },
-  { id: TaskStatus.DONE,        label: 'Done',        icon: <CheckCircle2 size={15} />,   accent: '#10B981' },
+  { id: TaskStatus.REVIEW, label: 'Review', icon: <Eye size={15} />, accent: '#8B5CF6' },
+  { id: TaskStatus.DONE, label: 'Done', icon: <CheckCircle2 size={15} />, accent: '#10B981' },
 ];
 
 
@@ -39,19 +39,19 @@ interface TaskBoardProps {
 const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) => {
   const { user, token } = useAuth();
 
-  const [projects,    setProjects]    = useState<Project[]>([]);
-  const [projectId,   setProjectId]   = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectId, setProjectId] = useState<string | null>(null);
   const [projLoading, setProjLoading] = useState(true);
-  const [selectOpen,  setSelectOpen]  = useState(false);
+  const [selectOpen, setSelectOpen] = useState(false);
 
   const [members, setMembers] = useState<UserMeta[]>([]);
   const [userMap, setUserMap] = useState<Record<string, UserMeta>>(externalUserMap);
 
-  const [tasks,        setTasks]        = useState<Task[]>([]);
-  const [loading,      setLoading]      = useState(false);
-  const [error,        setError]        = useState('');
-  const [showModal,    setShowModal]    = useState(false);
-  const [editingTask,  setEditingTask]  = useState<Task | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
@@ -112,11 +112,11 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
 
   useEffect(() => {
     realtime._publish({ isConnected, onlineUserIds });
-  }, [isConnected, onlineUserIds]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isConnected, onlineUserIds]);
 
   useEffect(() => {
     realtime._registerSend(send);
-  }, [send]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [send]);
 
   const lastCursorSend = useRef(0);
   useEffect(() => {
@@ -128,7 +128,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
       send({
         type: 'cursor_move',
         payload: {
-          x: parseFloat(((e.clientX / window.innerWidth)  * 100).toFixed(2)),
+          x: parseFloat(((e.clientX / window.innerWidth) * 100).toFixed(2)),
           y: parseFloat(((e.clientY / window.innerHeight) * 100).toFixed(2)),
         },
       });
@@ -142,7 +142,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
       setProjLoading(true);
       try {
         const params = user?.id ? { userId: user.id } : undefined;
-        const data   = await projectsApi.list(params);
+        const data = await projectsApi.list(params);
         const active = data.filter(p => p.status === 'ACTIVE');
         setProjects(active);
         if (active.length > 0) setProjectId(active[0].id);
@@ -156,18 +156,17 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
     if (!projectId) return;
     projectsApi.getMembers(projectId).then(memberships => {
       const meta: UserMeta[] = memberships.map(m => ({
-        id:       m.userId,
+        id: m.userId,
         username: m.username,
-        email:    m.email,
-        avatar:   m.avatar,
+        email: m.email,
+        avatar: m.avatar,
       }));
       setMembers(meta);
       const map: Record<string, UserMeta> = { ...externalUserMap };
       meta.forEach(m => { map[m.id] = m; });
       setUserMap(map);
-      realtime._publish({ userMap: map });
-    }).catch(() => {});
-  }, [projectId]); 
+    }).catch(() => { });
+  }, [projectId]);
 
   const loadTasks = useCallback(async () => {
     if (!projectId) return;
@@ -213,7 +212,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
     send({ type: 'task_created', payload: { task: created } });
   };
 
-  const handleEdit   = (task: Task) => setEditingTask(task);
+  const handleEdit = (task: Task) => setEditingTask(task);
 
   const handleUpdate = async (payload: Parameters<typeof taskService.updateTask>[1]) => {
     if (!editingTask) return;
@@ -228,8 +227,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
     send({ type: 'task_deleted', taskId });
   };
 
-  const byStatus         = (colId: TaskStatus) => tasks.filter(t => t.status === colId);
-  const selectedProject  = projects.find(p => p.id === projectId);
+  const byStatus = (colId: TaskStatus) => tasks.filter(t => t.status === colId);
+  const selectedProject = projects.find(p => p.id === projectId);
 
   if (projLoading) {
     return (

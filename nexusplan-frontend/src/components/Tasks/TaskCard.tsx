@@ -7,9 +7,9 @@ import { type Task, TaskPriority, type UserMeta } from '../../types/task';
 
 const PRIORITY_CONFIG: Record<string, { label: string; icon: React.ReactNode; className: string }> = {
   [TaskPriority.URGENT]: { label: 'Urgent', icon: <AlertOctagon size={11} />, className: 'tc-priority tc-priority--urgent' },
-  [TaskPriority.HIGH]:   { label: 'High',   icon: <ArrowUp size={11} />,      className: 'tc-priority tc-priority--high'   },
-  [TaskPriority.MEDIUM]: { label: 'Medium', icon: <Minus size={11} />,        className: 'tc-priority tc-priority--medium' },
-  [TaskPriority.LOW]:    { label: 'Low',    icon: <ArrowDown size={11} />,    className: 'tc-priority tc-priority--low'    },
+  [TaskPriority.HIGH]: { label: 'High', icon: <ArrowUp size={11} />, className: 'tc-priority tc-priority--high' },
+  [TaskPriority.MEDIUM]: { label: 'Medium', icon: <Minus size={11} />, className: 'tc-priority tc-priority--medium' },
+  [TaskPriority.LOW]: { label: 'Low', icon: <ArrowDown size={11} />, className: 'tc-priority tc-priority--low' },
 };
 
 
@@ -18,7 +18,7 @@ const MAX_VISIBLE = 3;
 function AvatarStack({ ids, userMap }: { ids: string[]; userMap: Record<string, UserMeta> }) {
   if (!ids?.length) return null;
   const visible = ids.slice(0, MAX_VISIBLE);
-  const extra   = ids.length - MAX_VISIBLE;
+  const extra = ids.length - MAX_VISIBLE;
   function initials(m: UserMeta) { return (m.username || m.email || '?').slice(0, 2).toUpperCase(); }
 
   return (
@@ -51,19 +51,19 @@ function isOverdue(iso: string) { return new Date(iso) < new Date(); }
 
 
 interface TaskCardProps {
-  task:       Task;
-  index:      number;
-  userMap?:   Record<string, UserMeta>;
-  onEdit?:    (task: Task) => void;
-  onDelete?:  (taskId: string) => Promise<void>;
+  task: Task;
+  index: number;
+  userMap?: Record<string, UserMeta>;
+  onEdit?: (task: Task) => void;
+  onDelete?: (taskId: string) => Promise<void>;
 }
 
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, index, userMap = {}, onEdit, onDelete }) => {
-  const priority      = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG[TaskPriority.MEDIUM];
-  const overdue       = task.dueDate && isOverdue(task.dueDate);
+  const priority = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG[TaskPriority.MEDIUM];
+  const overdue = task.dueDate && isOverdue(task.dueDate);
   const [confirmDel, setConfirmDel] = useState(false);
-  const [deleting,   setDeleting]   = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleDeleteConfirm = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -123,8 +123,6 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, userMap = {}, onEdit, 
             </span>
 
             <div className="tc-card-header-right">
-              <AvatarStack ids={task.assigneeIds ?? []} userMap={userMap} />
-
               <div className="tc-actions">
                 <button
                   className="tc-action-btn tc-action-btn--edit"
@@ -158,6 +156,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, userMap = {}, onEdit, 
               </span>
             </div>
           )}
+          <div className='flex justify-end'>
+            <AvatarStack ids={task.assigneeIds ?? []} userMap={userMap} />
+          </div>
         </div>
       )}
     </Draggable>

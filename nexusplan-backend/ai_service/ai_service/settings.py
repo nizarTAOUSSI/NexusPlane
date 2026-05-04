@@ -27,6 +27,7 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "drf_spectacular",
+    "assistant",
 ]
 
 MIDDLEWARE = [
@@ -135,5 +136,18 @@ CORS_ALLOW_HEADERS = [
     "user-agent",
     "x-csrftoken",
     "x-requested-with",
+    "x-user-id",  # API Gateway injects the authenticated user UUID
 ]
+
+# ---------------------------------------------------------------------------
+# LLM provider configuration
+# ---------------------------------------------------------------------------
+# LLM_PROVIDER: "gemini" (default) | "openai"
+# GEMINI_API_KEY / GOOGLE_API_KEY  — required when provider is "gemini"
+# OPENAI_API_KEY                   — required when provider is "openai"
+# GEMINI_MODEL   — optional, defaults to "gemini-2.0-flash"
+# OPENAI_MODEL   — optional, defaults to "gpt-4o-mini"
+LLM_PROVIDER  = os.environ.get("LLM_PROVIDER",  "gemini")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
