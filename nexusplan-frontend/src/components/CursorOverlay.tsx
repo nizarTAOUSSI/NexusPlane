@@ -44,7 +44,7 @@ function CursorSVG({ color }: { color: string }) {
 const CursorOverlay: React.FC = () => {
   const { cursors, userMap } = useRealtime();
   const { user }             = useAuth();
-  const [tick, setTick]      = useState(0);
+  const [, setTick]          = useState(0);
 
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), SWEEP_MS);
