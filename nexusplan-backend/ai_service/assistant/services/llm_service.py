@@ -76,7 +76,6 @@ def _parse_task_list(raw: str) -> list[GeneratedTask]:
     Extract and validate the JSON array from the model's raw text output.
     Strips accidental markdown fences if the model misbehaves.
     """
-    # Strip ```json … ``` wrappers, just in case.
     clean = re.sub(r"```(?:json)?", "", raw).strip().rstrip("`").strip()
 
     try:
@@ -149,7 +148,6 @@ def _generate_with_gemini(description: str) -> TaskGenerationResult:
 
     raw = response.text or ""
 
-    # Token accounting (Gemini returns usage_metadata)
     tokens_used = 0
     if hasattr(response, "usage_metadata") and response.usage_metadata:
         meta = response.usage_metadata
@@ -166,42 +164,67 @@ def _generate_with_gemini(description: str) -> TaskGenerationResult:
 
 
 # ---------------------------------------------------------------------------
-# OpenAI provider
+# OpenAI-compatible API caller (used by Groq & OpenRouter)
 # ---------------------------------------------------------------------------
 
-def _generate_with_openai(description: str) -> TaskGenerationResult:
-    """Call OpenAI Chat Completions API via the openai SDK."""
-    try:
-        from openai import OpenAI  # type: ignore
-    except ImportError as exc:
-        raise RuntimeError(
-            "openai is not installed. "
-            "Add 'openai' to requirements.txt and rebuild the container."
-        ) from exc
+def _call_openai_compatible_api(description: str, api_key: str, base_url: str, model: str) -> TaskGenerationResult:
+    import urllib.request
+    import urllib.error
 
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is not set in the environment.")
-
-    client = OpenAI(api_key=api_key)
-
-    completion = client.chat.completions.create(
-        model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-        messages=[
+    url = f"{base_url}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://nexusplane.duckdns.org", # Required by OpenRouter
+        "X-Title": "NexusPlan"
+    }
+    data = {
+        "model": model,
+        "messages": [
             {"role": "system", "content": _TASK_GENERATION_SYSTEM_PROMPT},
-            {"role": "user",   "content": description},
+            {"role": "user", "content": description}
         ],
-        temperature=0.3,
-        max_tokens=2048,
-        response_format={"type": "json_object"},  # forces JSON mode
-    )
-
-    raw = completion.choices[0].message.content or ""
-    tokens_used = completion.usage.total_tokens if completion.usage else 0
-
+        "temperature": 0.3,
+        "max_tokens": 2048,
+    }
+    
+    req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as response:
+            resp_body = response.read().decode("utf-8")
+            resp_data = json.loads(resp_body)
+    except urllib.error.URLError as e:
+        err_msg = e.read().decode("utf-8") if hasattr(e, 'read') else str(e)
+        raise RuntimeError(f"API call to {base_url} failed: {err_msg}")
+        
+    raw = resp_data["choices"][0]["message"]["content"]
+    usage = resp_data.get("usage", {})
+    tokens_used = usage.get("total_tokens", 0)
+    
     tasks = _parse_task_list(raw)
     return TaskGenerationResult(tasks=tasks, tokens_used=tokens_used, raw_response=raw)
 
+def _generate_with_groq(description: str) -> TaskGenerationResult:
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY is not set in the environment.")
+    return _call_openai_compatible_api(
+        description, 
+        api_key, 
+        "https://api.groq.com/openai/v1", 
+        os.environ.get("GROQ_MODEL", "llama3-8b-8192")
+    )
+
+def _generate_with_openrouter(description: str) -> TaskGenerationResult:
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY is not set in the environment.")
+    return _call_openai_compatible_api(
+        description, 
+        api_key, 
+        "https://openrouter.ai/api/v1", 
+        os.environ.get("OPENROUTER_MODEL", "meta-llama/llama-3-8b-instruct:free")
+    )
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -209,30 +232,36 @@ def _generate_with_openai(description: str) -> TaskGenerationResult:
 
 def generate_tasks_from_description(description: str) -> TaskGenerationResult:
     """
-    Main entry-point.  Routes to the correct LLM provider based on the
-    LLM_PROVIDER environment variable (default: "gemini").
+    Main entry-point. Implements a fallback strategy:
+    Gemini (Main logic) -> Groq (Fast response) -> OpenRouter (Fallback)
 
     Args:
         description: Free-text project or feature description from the user.
 
     Returns:
-        TaskGenerationResult with a validated list of GeneratedTask objects
-        and the total tokens consumed.
+        TaskGenerationResult with a validated list of GeneratedTask objects.
 
     Raises:
-        ValueError:  The model returned malformed JSON.
-        RuntimeError: Missing API key or SDK not installed.
+        ValueError: All AI providers failed.
     """
-    provider = os.environ.get("LLM_PROVIDER", "gemini").lower().strip()
+    logger.info("generate_tasks_from_description called | desc_len=%d", len(description))
 
-    logger.info(
-        "generate_tasks_from_description called | provider=%s | desc_len=%d",
-        provider,
-        len(description),
-    )
+    try:
+        logger.info("Trying Gemini provider...")
+        return _generate_with_gemini(description)
+    except Exception as e:
+        logger.warning("Gemini failed: %s", e)
 
-    if provider == "openai":
-        return _generate_with_openai(description)
+    try:
+        logger.info("Trying Groq provider...")
+        return _generate_with_groq(description)
+    except Exception as e:
+        logger.warning("Groq failed: %s", e)
 
-    # Default: Gemini
-    return _generate_with_gemini(description)
+    try:
+        logger.info("Trying OpenRouter provider...")
+        return _generate_with_openrouter(description)
+    except Exception as e:
+        logger.error("OpenRouter failed: %s", e)
+
+    raise ValueError("All AI providers (Gemini, Groq, OpenRouter) failed or are missing API keys.")
