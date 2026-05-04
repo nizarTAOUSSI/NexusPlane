@@ -9,10 +9,19 @@ The consumer decides whether to enforce authentication;
 this middleware never closes the connection by itself.
 """
 
+import os
 import jwt
 from urllib.parse import parse_qs
+import logging
 
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+# The signing key used by auth_service.
+# Must match auth_service's SECRET_KEY (or SIMPLE_JWT['SIGNING_KEY']).
+# Set AUTH_JWT_SECRET_KEY in realtime_service's env file to match.
+_JWT_KEY = os.environ.get("AUTH_JWT_SECRET_KEY") or settings.SECRET_KEY
 
 
 class JWTAuthMiddleware:
@@ -43,7 +52,7 @@ class JWTAuthMiddleware:
             try:
                 payload = jwt.decode(
                     token,
-                    settings.SECRET_KEY,
+                    _JWT_KEY,
                     algorithms=["HS256"],
                 )
                 user_id = str(
@@ -54,9 +63,9 @@ class JWTAuthMiddleware:
                 if user_id:
                     is_authenticated = True
             except jwt.ExpiredSignatureError:
-                pass   
-            except jwt.InvalidTokenError:
-                pass   
+                logger.warning("WS JWT: token expired")
+            except jwt.InvalidTokenError as e:
+                logger.warning("WS JWT: invalid token — %s", e)
 
         scope["user_id"]         = user_id
         scope["is_authenticated"] = is_authenticated
