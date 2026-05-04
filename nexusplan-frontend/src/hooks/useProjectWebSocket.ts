@@ -8,6 +8,7 @@ export type WSEventType =
   | 'task_deleted'
   | 'user_connected'
   | 'user_disconnected'
+  | 'cursor_move'
   | 'error';
 
 export interface WSEvent {

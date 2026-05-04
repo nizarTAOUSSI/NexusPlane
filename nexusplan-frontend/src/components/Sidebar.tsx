@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useRealtime } from '../context/RealtimeContext';
 import logo from '../assets/logoNexus.png';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -52,6 +53,59 @@ const SEGMENT_LABELS: Record<string, string> = {
 
 const formatSegment = (seg: string) =>
   SEGMENT_LABELS[seg.toLowerCase()] ?? seg;
+
+
+const MAX_NAV_AV = 4;
+
+const CURSOR_PALETTE = [
+  '#6366F1', '#EC4899', '#F59E0B', '#10B981',
+  '#3B82F6', '#8B5CF6', '#EF4444', '#06B6D4',
+];
+function avatarColor(userId: string): string {
+  let h = 5381;
+  for (const c of userId) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0;
+  return CURSOR_PALETTE[h % CURSOR_PALETTE.length];
+}
+
+const OnlineUsersAvatars: React.FC = () => {
+  const { isConnected, onlineUserIds, userMap } = useRealtime();
+  const others  = [...onlineUserIds];
+  const visible = others.slice(0, MAX_NAV_AV);
+  const extra   = others.length - MAX_NAV_AV;
+
+  return (
+    <div className="nb-online-stack">
+      <span
+        className={`nb-ws-dot ${isConnected ? 'nb-ws-dot--on' : 'nb-ws-dot--off'}`}
+        title={isConnected ? 'Live sync active' : 'Connecting…'}
+      />
+
+      <div className="nb-avatars">
+        {visible.map((uid, i) => {
+          const meta  = userMap[uid];
+          const color = avatarColor(uid);
+          const label = (meta?.username || meta?.email || uid).slice(0, 2).toUpperCase();
+          return (
+            <div
+              key={uid}
+              className="nb-av nb-av--live"
+              style={{ background: color, zIndex: MAX_NAV_AV - i }}
+              title={meta?.username || meta?.email || uid}
+            >
+              {meta?.avatar
+                ? <img src={meta.avatar} alt="" />
+                : label
+              }
+            </div>
+          );
+        })}
+        {extra > 0 && (
+          <div className="nb-av nb-av--extra" title={`${extra} more`}>+{extra}</div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const TopNavbar: React.FC = () => {
   const navigate = useNavigate();
@@ -113,11 +167,7 @@ export const TopNavbar: React.FC = () => {
           <span className="nb-badge">3</span>
         </button>
 
-        <div className="nb-avatars">
-          <div className="nb-av nb-av--pink" title="Team member" />
-          <div className="nb-av nb-av--blue" title="Team member" />
-          <div className="nb-av nb-av--amber" title="Team member" />
-        </div>
+        <OnlineUsersAvatars />
 
         <div className="nb-user">
           <button className="nb-user-btn" onClick={() => setUserOpen(o => !o)}>

@@ -8,6 +8,7 @@ import {
 import { taskService } from '../../services/taskService';
 import { projectsApi, type Project } from '../../projectsApi';
 import { useAuth } from '../../context/AuthContext';
+import { useRealtime } from '../../context/RealtimeContext';
 import { type Task, TaskStatus, type UserMeta } from '../../types/task';
 import { useProjectWebSocket, type WSEvent } from '../../hooks/useProjectWebSocket';
 import TaskCard from './TaskCard';
@@ -55,6 +56,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
   const tasksRef = useRef(tasks);
   tasksRef.current = tasks;
 
+  const realtime = useRealtime();
+
   const handleWsEvent = useCallback((event: WSEvent) => {
     switch (event.type) {
       case 'task_moved':
@@ -86,8 +89,19 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
           setTasks(prev => prev.filter(t => t.id !== event.taskId));
         }
         break;
+
+      case 'cursor_move':
+        if (event.userId && event.payload) {
+          const { x, y } = event.payload as { x: number; y: number };
+          realtime._updateCursor(event.userId, { x, y, ts: Date.now() });
+        }
+        break;
+
+      case 'user_disconnected':
+        if (event.userId) realtime._removeCursor(event.userId);
+        break;
     }
-  }, []);
+  }, [realtime]);
 
   const { isConnected, onlineUserIds, send } = useProjectWebSocket({
     projectId,
@@ -95,6 +109,33 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
     currentUserId: user?.id ?? null,
     onEvent: handleWsEvent,
   });
+
+  useEffect(() => {
+    realtime._publish({ isConnected, onlineUserIds });
+  }, [isConnected, onlineUserIds]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    realtime._registerSend(send);
+  }, [send]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const lastCursorSend = useRef(0);
+  useEffect(() => {
+    const THROTTLE_MS = 50;
+    const onMove = (e: MouseEvent) => {
+      const now = Date.now();
+      if (now - lastCursorSend.current < THROTTLE_MS) return;
+      lastCursorSend.current = now;
+      send({
+        type: 'cursor_move',
+        payload: {
+          x: parseFloat(((e.clientX / window.innerWidth)  * 100).toFixed(2)),
+          y: parseFloat(((e.clientY / window.innerHeight) * 100).toFixed(2)),
+        },
+      });
+    };
+    window.addEventListener('mousemove', onMove, { passive: true });
+    return () => window.removeEventListener('mousemove', onMove);
+  }, [send]);
 
   useEffect(() => {
     const fetchProjects = async () => {
@@ -124,6 +165,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
       const map: Record<string, UserMeta> = { ...externalUserMap };
       meta.forEach(m => { map[m.id] = m; });
       setUserMap(map);
+      realtime._publish({ userMap: map });
     }).catch(() => {});
   }, [projectId]); 
 

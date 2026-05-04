@@ -43,6 +43,7 @@ ALLOWED_ACTIONS = {
     "task_deleted",
     "member_joined",
     "member_left",
+    "cursor_move",
 }
 
 

@@ -2325,3 +2325,78 @@ html {
   color: var(--text-2);
   font-size: 9px;
 }
+
+/* --------------------------------------------------------------------------
+   Cursor Overlay
+   -------------------------------------------------------------------------- */
+
+.cursor-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.cursor-entity {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  will-change: left, top;
+}
+
+.cursor-svg {
+  filter: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.2));
+  transform-origin: top left;
+}
+
+.cursor-label {
+  position: absolute;
+  top: 18px;
+  left: 12px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  border-top-left-radius: 2px;
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0px 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* --------------------------------------------------------------------------
+   TopNavbar Online Stack
+   -------------------------------------------------------------------------- */
+
+.nb-online-stack {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 16px;
+}
+
+.nb-ws-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.nb-ws-dot--on {
+  background: #10B981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  animation: op-pulse 2s infinite;
+}
+
+.nb-ws-dot--off {
+  background: var(--text-3);
+}
+
+.nb-av--live {
+  color: white;
+  border-color: white;
+  box-shadow: 0 0 0 2px white;
+}
