@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "drf_spectacular",
     "channels",
+    "notifications",
 ]
 
 MIDDLEWARE = [
@@ -78,12 +79,21 @@ DATABASES = {
 # ---------------------------------------------------------------------------
 # Django Channels — Redis channel layer
 # ---------------------------------------------------------------------------
+#
+# REDIS_URL is defined in docker-compose.yml as:
+#   REDIS_URL=redis://redis:6379/0
+# Fallback to localhost for local development without Docker.
+#
+_redis_url = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
 
 CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [(os.environ.get("REDIS_HOST", "127.0.0.1"), 6379)],
+            "hosts": [_redis_url],
+            # Max message size (bytes) — 10 MB
+            "capacity": 1500,
+            "expiry": 60,          # drop undelivered messages after 60 s
         },
     },
 }

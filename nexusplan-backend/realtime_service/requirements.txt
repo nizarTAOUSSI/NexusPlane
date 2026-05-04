@@ -4,8 +4,10 @@ psycopg2-binary
 dj-database-url
 drf-spectacular
 channels
+channels_redis
 daphne
 redis
+PyJWT
 python-dotenv
 gunicorn
 django-cors-headers
