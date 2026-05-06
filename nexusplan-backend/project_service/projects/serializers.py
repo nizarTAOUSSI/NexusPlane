@@ -87,3 +87,31 @@ class MembershipUpdateRoleSerializer(serializers.Serializer):
         choices=MemberRole.choices,
         help_text="New role to assign: VIEWER | CONTRIBUTOR | MANAGER.",
     )
+
+
+class TeamSerializer(serializers.ModelSerializer):
+    memberCount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Team
+        fields = ("id", "name", "description", "ownerId", "memberCount", "createdAt", "updatedAt")
+        read_only_fields = ("id", "ownerId", "createdAt", "updatedAt")
+
+    def get_memberCount(self, obj) -> int:
+        return obj.memberships.count()
+
+
+class TeamCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ("name", "description")
+
+
+class TeamMembershipSerializer(serializers.ModelSerializer):
+    teamId = serializers.UUIDField(source="team_id", read_only=True)
+
+    class Meta:
+        model = TeamMembership
+        fields = ("id", "teamId", "userId", "role", "joinedAt")
+        read_only_fields = ("id", "joinedAt")
+

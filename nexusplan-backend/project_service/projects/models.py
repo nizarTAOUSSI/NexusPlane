@@ -15,6 +15,11 @@ class MemberRole(models.TextChoices):
     MANAGER = "MANAGER", "Manager"
 
 
+class TeamMemberRole(models.TextChoices):
+    MEMBER = "MEMBER", "Member"
+    ADMIN  = "ADMIN",  "Admin"
+
+
 
 class Project(models.Model):
 
@@ -73,3 +78,60 @@ class Membership(models.Model):
 
     def __str__(self) -> str:
         return f"User {self.userId} → Project {self.projectId_id} [{self.role}]"
+
+
+# ---------------------------------------------------------------------------
+# Team  (independent of any project)
+# ---------------------------------------------------------------------------
+
+
+class Team(models.Model):
+
+    id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name        = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default="")
+    ownerId     = models.UUIDField(
+        db_index=True,
+        help_text="UUID of the team creator (from auth_service).",
+    )
+    createdAt   = models.DateTimeField(auto_now_add=True)
+    updatedAt   = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "teams"
+        ordering = ["-createdAt"]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class TeamMembership(models.Model):
+
+    id       = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    team     = models.ForeignKey(
+        Team,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    userId   = models.UUIDField(
+        db_index=True,
+        help_text="UUID of the team member (from auth_service).",
+    )
+    role     = models.CharField(
+        max_length=10,
+        choices=TeamMemberRole.choices,
+        default=TeamMemberRole.MEMBER,
+    )
+    joinedAt = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "team_memberships"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["team", "userId"],
+                name="unique_team_member",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"User {self.userId} → Team {self.team.name} [{self.role}]"

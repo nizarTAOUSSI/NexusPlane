@@ -522,6 +522,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def destroy(self, request: Request, *args, **kwargs) -> Response:
         """Soft-delete: transitions status to DELETED instead of removing the row."""
         project = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        if str(project.ownerId) != requester_id:
+            return Response(
+                {"detail": "Only the project owner can delete this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         project.status = ProjectStatus.DELETED
         project.save(update_fields=["status", "updatedAt"])
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -534,11 +540,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
         summary="Archive a project",
         description=(
             "Transitions project status from ACTIVE → ARCHIVED. "
+            "Only the project owner can archive. "
             "Returns 409 if the project is already ARCHIVED or DELETED."
         ),
         request=None,
         responses={
             200: ProjectSerializer,
+            403: OpenApiResponse(description="Caller is not the project owner."),
             409: OpenApiResponse(
                 description="Project is not in ACTIVE status and cannot be archived."
             ),
@@ -549,6 +557,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def archive(self, request: Request, pk=None) -> Response:  # noqa: ARG002
         """Change the project status to ARCHIVED (UML: archive())."""
         project = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        if str(project.ownerId) != requester_id:
+            return Response(
+                {"detail": "Only the project owner can archive this project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         if project.status != ProjectStatus.ACTIVE:
             return Response(
                 {
@@ -649,6 +663,17 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def invite(self, request: Request, pk=None) -> Response:  # noqa: ARG002
         """Invite a collaborator to this project by their email address."""
         project = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        # Only project owner or MANAGERs may invite
+        is_owner = str(project.ownerId) == requester_id
+        is_manager = Membership.objects.filter(
+            projectId=project, userId=requester_id, role="MANAGER"
+        ).exists()
+        if not (is_owner or is_manager):
+            return Response(
+                {"detail": "Only the project owner or managers can invite members."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         email = (request.data.get("email") or "").strip().lower()
         role = (request.data.get("role") or "VIEWER").strip().upper()
 
@@ -711,6 +736,120 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_202_ACCEPTED,
             )
 
+
+    # ------------------------------------------------------------------
+    # quit — let a member leave the project voluntarily
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Quit a project",
+        description=(
+            "Allows the authenticated user to leave a project they are a member of. "
+            "The project owner cannot quit — they must transfer ownership or delete the project."
+        ),
+        request=None,
+        responses={
+            204: OpenApiResponse(description="Successfully left the project."),
+            400: OpenApiResponse(description="Owner cannot quit their own project."),
+            404: OpenApiResponse(description="You are not a member of this project."),
+        },
+        tags=_PROJECT_TAG,
+    )
+    @action(detail=True, methods=["post"], url_path="quit")
+    def quit(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        """Remove the caller from the project's membership list."""
+        project = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        if str(project.ownerId) == requester_id:
+            return Response(
+                {"detail": "The project owner cannot quit. Transfer ownership or delete the project."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            membership = Membership.objects.get(projectId=project, userId=requester_id)
+        except Membership.DoesNotExist:
+            return Response(
+                {"detail": "You are not a member of this project."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        membership.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # kick — let owner remove any member
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Remove a member from a project (kick)",
+        description=(
+            "Allows the project owner to remove any member. "
+            "Managers can also remove VIEWER and CONTRIBUTOR members."
+        ),
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "userId": {"type": "string", "format": "uuid"},
+                },
+                "required": ["userId"],
+            }
+        },
+        responses={
+            204: OpenApiResponse(description="Member removed."),
+            403: OpenApiResponse(description="Insufficient permissions."),
+            404: OpenApiResponse(description="Member not found."),
+        },
+        tags=_PROJECT_TAG,
+    )
+    @action(detail=True, methods=["post"], url_path="kick")
+    def kick(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        """Remove a member from the project (owner/manager action)."""
+        project = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        target_user_id = (request.data.get("userId") or "").strip()
+
+        if not target_user_id:
+            return Response(
+                {"detail": "'userId' is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        is_owner = str(project.ownerId) == requester_id
+        requester_membership = Membership.objects.filter(
+            projectId=project, userId=requester_id
+        ).first()
+        is_manager = requester_membership and requester_membership.role == "MANAGER"
+
+        if not (is_owner or is_manager):
+            return Response(
+                {"detail": "Only the project owner or managers can remove members."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Cannot kick the owner
+        if str(project.ownerId) == target_user_id:
+            return Response(
+                {"detail": "The project owner cannot be removed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            membership = Membership.objects.get(projectId=project, userId=target_user_id)
+        except Membership.DoesNotExist:
+            return Response(
+                {"detail": "This user is not a member of the project."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Managers can only remove viewers/contributors (not other managers)
+        if is_manager and not is_owner and membership.role == "MANAGER":
+            return Response(
+                {"detail": "Managers cannot remove other managers. Only the owner can."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        membership.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # ---------------------------------------------------------------------------
@@ -814,8 +953,483 @@ class MembershipViewSet(
     def update_role(self, request: Request, pk=None) -> Response:  # noqa: ARG002
         """Change the role of a project member (UML: updateRole())."""
         membership = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        project = membership.projectId
+        is_owner = str(project.ownerId) == requester_id
+        is_manager = Membership.objects.filter(
+            projectId=project, userId=requester_id, role="MANAGER"
+        ).exists()
+        if not (is_owner or is_manager):
+            return Response(
+                {"detail": "Only the project owner or managers can update member roles."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = MembershipUpdateRoleSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         membership.role = serializer.validated_data["role"]
         membership.save(update_fields=["role"])
         return Response(MembershipSerializer(membership).data, status=status.HTTP_200_OK)
+
+
+# ---------------------------------------------------------------------------
+# TeamViewSet
+# ---------------------------------------------------------------------------
+
+from .models import Team, TeamMembership, TeamMemberRole   # noqa: E402
+from .serializers import (                                  # noqa: E402
+    TeamSerializer,
+    TeamCreateSerializer,
+    TeamMembershipSerializer,
+)
+
+_TEAM_TAG = ["Teams"]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List teams visible to the caller",
+        description=(
+            "Returns all teams owned by the caller OR where the caller is a member. "
+            "Pass ``userId`` to filter by a specific user."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="userId",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter teams that belong to this user (owner or member).",
+            ),
+        ],
+        tags=_TEAM_TAG,
+    ),
+    create=extend_schema(
+        summary="Create a new team",
+        request=TeamCreateSerializer,
+        responses={201: TeamSerializer},
+        tags=_TEAM_TAG,
+    ),
+    retrieve=extend_schema(
+        summary="Get a team",
+        responses={200: TeamSerializer},
+        tags=_TEAM_TAG,
+    ),
+    update=extend_schema(
+        summary="Update a team (full)",
+        request=TeamCreateSerializer,
+        responses={200: TeamSerializer},
+        tags=_TEAM_TAG,
+    ),
+    partial_update=extend_schema(
+        summary="Update a team (partial)",
+        request=TeamCreateSerializer,
+        responses={200: TeamSerializer},
+        tags=_TEAM_TAG,
+    ),
+    destroy=extend_schema(
+        summary="Delete a team",
+        responses={204: None},
+        tags=_TEAM_TAG,
+    ),
+)
+class TeamViewSet(viewsets.ModelViewSet):
+    """
+    CRUD ViewSet for Team resources.
+
+    A Team is an independent group of users. Teams can be invited to projects
+    in bulk via the ``invite-to-project`` action.
+    """
+
+    permission_classes = [AllowAny]
+    serializer_class = TeamSerializer
+
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return TeamCreateSerializer
+        return TeamSerializer
+
+    def get_queryset(self):
+        from django.db.models import Q
+        user_id = self.request.query_params.get("userId") or self.request.headers.get("X-User-Id")
+        if user_id:
+            member_team_ids = TeamMembership.objects.filter(
+                userId=user_id
+            ).values_list("team_id", flat=True)
+            return Team.objects.filter(
+                Q(ownerId=user_id) | Q(id__in=member_team_ids)
+            )
+        return Team.objects.all()
+
+    def perform_create(self, serializer):
+        owner_id = self.request.headers.get("X-User-Id")
+        if not owner_id:
+            raise ValidationError({"ownerId": "Missing X-User-Id header."})
+        team = serializer.save(ownerId=owner_id)
+        # Auto-add creator as ADMIN member
+        TeamMembership.objects.create(team=team, userId=owner_id, role=TeamMemberRole.ADMIN)
+
+    def update(self, request: Request, *args, **kwargs) -> Response:
+        partial = kwargs.pop("partial", False)
+        instance = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        if str(instance.ownerId) != requester_id:
+            return Response(
+                {"detail": "Only the team owner can update this team."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        write_serializer = TeamCreateSerializer(instance, data=request.data, partial=partial)
+        write_serializer.is_valid(raise_exception=True)
+        team = write_serializer.save()
+        return Response(TeamSerializer(team).data)
+
+    def destroy(self, request: Request, *args, **kwargs) -> Response:
+        instance = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        if str(instance.ownerId) != requester_id:
+            return Response(
+                {"detail": "Only the team owner can delete this team."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # Get team members — enriched with username/email from Redis
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="List team members",
+        responses={200: TeamMembershipSerializer(many=True)},
+        tags=_TEAM_TAG,
+    )
+    @action(detail=True, methods=["get"], url_path="members")
+    def get_members(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        team = self.get_object()
+        memberships = team.memberships.all()
+        enriched = []
+
+        owner_info = _get_user_by_id(str(team.ownerId)) or {}
+        enriched.append({
+            "id":       f"owner-{team.ownerId}",
+            "teamId":   str(team.id),
+            "userId":   str(team.ownerId),
+            "username": owner_info.get("username") or None,
+            "email":    owner_info.get("email") or None,
+            "avatar":   owner_info.get("avatar") or None,
+            "role":     "OWNER",
+            "joinedAt": team.createdAt.isoformat(),
+        })
+
+        for m in memberships:
+            if str(m.userId) == str(team.ownerId):
+                continue  # already included above
+            user_info = _get_user_by_id(str(m.userId)) or {}
+            enriched.append({
+                "id":       str(m.id),
+                "teamId":   str(team.id),
+                "userId":   str(m.userId),
+                "username": user_info.get("username") or None,
+                "email":    user_info.get("email") or None,
+                "avatar":   user_info.get("avatar") or None,
+                "role":     m.role,
+                "joinedAt": m.joinedAt.isoformat(),
+            })
+
+        return Response(enriched, status=status.HTTP_200_OK)
+
+    # ------------------------------------------------------------------
+    # Invite member by email
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Invite a user to the team by email",
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "email": {"type": "string", "format": "email"},
+                    "role": {"type": "string", "enum": ["MEMBER", "ADMIN"], "default": "MEMBER"},
+                },
+                "required": ["email"],
+            }
+        },
+        responses={
+            201: TeamMembershipSerializer,
+            202: OpenApiResponse(description="No account found — registration invite sent."),
+            400: OpenApiResponse(description="Already a member."),
+            403: OpenApiResponse(description="Insufficient permissions."),
+        },
+        tags=_TEAM_TAG,
+    )
+    @action(detail=True, methods=["post"], url_path="invite")
+    def invite(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        team = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+
+        # Only owner or ADMIN members can invite
+        is_owner = str(team.ownerId) == requester_id
+        is_admin = TeamMembership.objects.filter(
+            team=team, userId=requester_id, role=TeamMemberRole.ADMIN
+        ).exists()
+        if not (is_owner or is_admin):
+            return Response(
+                {"detail": "Only the team owner or admins can invite members."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        email = (request.data.get("email") or "").strip().lower()
+        role  = (request.data.get("role") or "MEMBER").strip().upper()
+        if not email:
+            return Response({"detail": "'email' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user_info  = _get_user_by_email(email)
+        user_exists = user_info is not None
+        user_id     = user_info.get("id") if user_exists else None
+
+        frontend_url = django_settings.FRONTEND_URL.rstrip("/")
+
+        if user_exists:
+            if TeamMembership.objects.filter(team=team, userId=user_id).exists():
+                return Response(
+                    {"detail": "This user is already a member of the team."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            membership = TeamMembership.objects.create(team=team, userId=user_id, role=role)
+            # Reuse the existing invite email with the team URL
+            username = user_info.get("username") or email.split("@")[0]
+            _send_existing_user_invite(
+                to_email=email,
+                username=username,
+                project_name=f"team \"{team.name}\"",
+                role=role,
+                project_url=f"{frontend_url}/teams/{team.id}",
+                frontend_url=frontend_url,
+            )
+            return Response(
+                {
+                    "id":       str(membership.id),
+                    "teamId":   str(team.id),
+                    "userId":   str(membership.userId),
+                    "role":     membership.role,
+                    "joinedAt": membership.joinedAt.isoformat(),
+                },
+                status=status.HTTP_201_CREATED,
+            )
+        else:
+            register_url = (
+                f"{frontend_url}/signup"
+                f"?invite_team={team.id}"
+                f"&invite_role={role}"
+                f"&email={urllib.parse.quote(email)}"
+            )
+            _send_new_user_invite(
+                to_email=email,
+                project_name=f"team \"{team.name}\"",
+                role=role,
+                register_url=register_url,
+                frontend_url=frontend_url,
+            )
+            return Response(
+                {"detail": "No account found. A registration invitation has been sent."},
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+    # ------------------------------------------------------------------
+    # Quit team (member leaves voluntarily)
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Quit a team",
+        description="Allows the authenticated user to leave a team. The team owner cannot quit.",
+        responses={
+            204: OpenApiResponse(description="Successfully left the team."),
+            400: OpenApiResponse(description="Owner cannot quit."),
+            404: OpenApiResponse(description="Not a member."),
+        },
+        tags=_TEAM_TAG,
+    )
+    @action(detail=True, methods=["post"], url_path="quit")
+    def quit(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        team = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        if str(team.ownerId) == requester_id:
+            return Response(
+                {"detail": "The team owner cannot quit. Transfer ownership or delete the team."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            membership = TeamMembership.objects.get(team=team, userId=requester_id)
+        except TeamMembership.DoesNotExist:
+            return Response(
+                {"detail": "You are not a member of this team."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        membership.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # Kick a member (owner / admin only)
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Remove a member from the team",
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {"userId": {"type": "string", "format": "uuid"}},
+                "required": ["userId"],
+            }
+        },
+        responses={
+            204: OpenApiResponse(description="Member removed."),
+            403: OpenApiResponse(description="Insufficient permissions."),
+            404: OpenApiResponse(description="Member not found."),
+        },
+        tags=_TEAM_TAG,
+    )
+    @action(detail=True, methods=["post"], url_path="kick")
+    def kick(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        team = self.get_object()
+        requester_id  = request.headers.get("X-User-Id")
+        target_user_id = (request.data.get("userId") or "").strip()
+
+        if not target_user_id:
+            return Response({"detail": "'userId' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        is_owner = str(team.ownerId) == requester_id
+        requester_tm = TeamMembership.objects.filter(team=team, userId=requester_id).first()
+        is_admin  = requester_tm and requester_tm.role == TeamMemberRole.ADMIN
+
+        if not (is_owner or is_admin):
+            return Response(
+                {"detail": "Only the team owner or admins can remove members."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if str(team.ownerId) == target_user_id:
+            return Response(
+                {"detail": "The team owner cannot be removed."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            membership = TeamMembership.objects.get(team=team, userId=target_user_id)
+        except TeamMembership.DoesNotExist:
+            return Response(
+                {"detail": "This user is not a member of the team."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        membership.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # Invite the entire team to a project (bulk invite)
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Invite the entire team to a project",
+        description=(
+            "Adds every member of the team to the specified project (with a given role). "
+            "Members already in the project are silently skipped. "
+            "The caller must be the project owner or a project MANAGER."
+        ),
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {
+                    "projectId": {"type": "string", "format": "uuid"},
+                    "role": {
+                        "type": "string",
+                        "enum": ["VIEWER", "CONTRIBUTOR", "MANAGER"],
+                        "default": "CONTRIBUTOR",
+                    },
+                },
+                "required": ["projectId"],
+            }
+        },
+        responses={
+            200: OpenApiResponse(description="Summary of how many members were added."),
+            403: OpenApiResponse(description="Insufficient permissions."),
+            404: OpenApiResponse(description="Project not found."),
+        },
+        tags=_TEAM_TAG,
+    )
+    @action(detail=True, methods=["post"], url_path="invite-to-project")
+    def invite_to_project(self, request: Request, pk=None) -> Response:  # noqa: ARG002
+        """Batch-invite all team members to a project."""
+        team = self.get_object()
+        requester_id = request.headers.get("X-User-Id")
+        project_id   = (request.data.get("projectId") or "").strip()
+        role         = (request.data.get("role") or "CONTRIBUTOR").strip().upper()
+
+        if not project_id:
+            return Response({"detail": "'projectId' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            project = Project.objects.get(pk=project_id)
+        except Project.DoesNotExist:
+            return Response({"detail": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check caller is project owner or manager
+        is_proj_owner   = str(project.ownerId) == requester_id
+        is_proj_manager = Membership.objects.filter(
+            projectId=project, userId=requester_id, role="MANAGER"
+        ).exists()
+        if not (is_proj_owner or is_proj_manager):
+            return Response(
+                {"detail": "Only the project owner or managers can invite teams to a project."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Collect all team user IDs (owner + members)
+        team_user_ids = set()
+        team_user_ids.add(str(team.ownerId))
+        for tm in team.memberships.all():
+            team_user_ids.add(str(tm.userId))
+
+        # Existing project members — skip them
+        existing_member_ids = set(
+            str(uid) for uid in
+            Membership.objects.filter(projectId=project).values_list("userId", flat=True)
+        )
+        existing_member_ids.add(str(project.ownerId))  # project owner is implicitly a member
+
+        added    = 0
+        skipped  = 0
+        memberships_created = []
+
+        for uid in team_user_ids:
+            if uid in existing_member_ids:
+                skipped += 1
+                continue
+            m = Membership.objects.create(projectId=project, userId=uid, role=role)
+            memberships_created.append(m)
+            added += 1
+
+            # Send invitation email (best-effort)
+            user_info = _get_user_by_id(uid) or {}
+            email     = user_info.get("email")
+            username  = user_info.get("username") or (email.split("@")[0] if email else uid[:8])
+            frontend_url = django_settings.FRONTEND_URL.rstrip("/")
+            if email:
+                try:
+                    _send_existing_user_invite(
+                        to_email=email,
+                        username=username,
+                        project_name=project.name,
+                        role=role,
+                        project_url=f"{frontend_url}/projects/{project.id}",
+                        frontend_url=frontend_url,
+                    )
+                except Exception:
+                    pass
+
+        return Response(
+            {
+                "added":   added,
+                "skipped": skipped,
+                "teamId":  str(team.id),
+                "projectId": str(project.id),
+                "role":    role,
+            },
+            status=status.HTTP_200_OK,
+        )
+
