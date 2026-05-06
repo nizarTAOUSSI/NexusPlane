@@ -20,13 +20,16 @@ from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from .models import Membership, Project, ProjectStatus
+from .models import Membership, MemberRole, Project, ProjectStatus, Team, TeamMembership, TeamMemberRole
 from .serializers import (
     MembershipCreateSerializer,
     MembershipSerializer,
     MembershipUpdateRoleSerializer,
     ProjectSerializer,
     ProjectUpdateSerializer,
+    TeamSerializer,
+    TeamCreateSerializer,
+    TeamMembershipSerializer,
 )
 
 _PROJECT_TAG = ["Projects"]
@@ -974,13 +977,6 @@ class MembershipViewSet(
 # ---------------------------------------------------------------------------
 # TeamViewSet
 # ---------------------------------------------------------------------------
-
-from .models import Team, TeamMembership, TeamMemberRole   # noqa: E402
-from .serializers import (                                  # noqa: E402
-    TeamSerializer,
-    TeamCreateSerializer,
-    TeamMembershipSerializer,
-)
 
 _TEAM_TAG = ["Teams"]
 

@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Membership, MemberRole, Project
+from .models import Membership, MemberRole, Project, Team, TeamMembership, TeamMemberRole
 
 
 
