@@ -18,7 +18,8 @@ const PALETTE = [
   '#6366F1', '#8B5CF6', '#EC4899', '#10B981',
   '#F59E0B', '#3B82F6', '#EF4444', '#06B6D4',
 ];
-function teamColor(id: string) {
+function teamColor(id?: string | null) {
+  if (!id || typeof id !== 'string') return PALETTE[0];
   let h = 5381;
   for (const c of id) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0;
   return PALETTE[h % PALETTE.length];
@@ -327,10 +328,18 @@ const TeamsPage: React.FC = () => {
   useEffect(() => { fetchTeams(); }, [currentUserId]);
   useEffect(() => { if (activeTeam) fetchMembers(activeTeam); }, [activeTeam?.id]);
 
-  const handleCreated = (t: Team) => {
-    setTeams(prev => [t, ...prev]);
-    setActiveTeam(t);
+  const handleCreated = async (t: Team) => {
     setShowCreate(false);
+    const ownedTeam: Team = { ...t, ownerId: currentUserId };
+    setTeams(prev => [ownedTeam, ...prev]);
+    setActiveTeam(ownedTeam);
+
+    try {
+      const data = await teamsApi.list(currentUserId);
+      setTeams(data);
+      const fresh = data.find(x => x.id === t.id);
+      if (fresh) setActiveTeam(fresh);
+    } catch {}
   };
 
   const handleDelete = async () => {
@@ -470,7 +479,6 @@ const TeamsPage: React.FC = () => {
         />
       )}
 
-      {/* ── Modals ────────────────────────────────────────────── */}
       <AnimatePresence>
         {showCreate && (
           <CreateModal userId={currentUserId} onClose={() => setShowCreate(false)} onCreate={handleCreated} />

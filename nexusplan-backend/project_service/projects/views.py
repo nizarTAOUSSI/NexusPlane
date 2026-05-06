@@ -337,6 +337,189 @@ def _send_new_user_invite(
     msg.send(fail_silently=True)
 
 
+
+_TEAM_ROLE_COLOR = {
+    "MEMBER": "#10B981",
+    "ADMIN":  "#8B5CF6",
+    "OWNER":  "#6366F1",
+}
+
+
+def _team_role_badge(role: str) -> str:
+    color = _TEAM_ROLE_COLOR.get(role, "#10B981")
+    return (
+        f'<span style="display:inline-block;background:{color}20;color:{color};'
+        f'border:1px solid {color}40;border-radius:999px;'
+        f'padding:3px 14px;font-size:12px;font-weight:700;'
+        f'text-transform:uppercase;letter-spacing:0.07em;">{role}</span>'
+    )
+
+
+def _send_team_existing_user_invite(
+    *,
+    to_email: str,
+    username: str,
+    team_name: str,
+    role: str,
+    team_url: str,
+) -> None:
+    """Send a team invitation email to an existing NexusPlan user."""
+    from datetime import date
+
+    subject = f"You've been added to the \"{team_name}\" team on NexusPlan"
+
+    body = f"""
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;
+                color:#10B981;text-transform:uppercase;letter-spacing:0.1em;">
+        Team Invitation
+      </p>
+      <h1 style="margin:0 0 18px;font-size:26px;font-weight:800;
+                 color:#FFFFFF;letter-spacing:-0.5px;line-height:1.2;">
+        You&rsquo;ve joined a team!
+      </h1>
+      <p style="margin:0 0 24px;font-size:15px;color:#9090B0;line-height:1.7;">
+        Hi <strong style="color:#FFFFFF;">{username}</strong>, you&rsquo;ve been added to a
+        team on NexusPlan. Teams let you collaborate across multiple projects at once.
+      </p>
+
+      <!-- Team card -->
+      <div style="background:#12121C;border:1px solid rgba(255,255,255,0.08);
+                  border-radius:14px;padding:22px 24px;margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+          <div style="width:48px;height:48px;border-radius:14px;flex-shrink:0;
+                      background:linear-gradient(135deg,#10B981,#06B6D4);
+                      display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-1px;">
+              {team_name[:2].upper()}
+            </span>
+          </div>
+          <div>
+            <p style="margin:0 0 2px;font-size:11px;font-weight:700;color:#4B4B6B;
+                      text-transform:uppercase;letter-spacing:0.09em;">Team</p>
+            <p style="margin:0;font-size:20px;font-weight:800;color:#FFFFFF;
+                      letter-spacing:-0.3px;">{team_name}</p>
+          </div>
+        </div>
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#4B4B6B;
+                  text-transform:uppercase;letter-spacing:0.09em;">Your Role</p>
+        {_team_role_badge(role)}
+      </div>
+
+      <!-- CTA -->
+      <div style="text-align:center;margin-bottom:28px;">
+        <a href="{team_url}"
+           style="display:inline-block;background:linear-gradient(135deg,#10B981,#06B6D4);
+                  color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;
+                  padding:14px 36px;border-radius:12px;
+                  box-shadow:0 8px 24px rgba(16,185,129,0.35);
+                  letter-spacing:0.01em;">
+          View Team &rarr;
+        </a>
+      </div>
+
+      <p style="margin:0;font-size:13px;color:#4B4B6B;text-align:center;line-height:1.6;">
+        Or copy this link:<br/>
+        <a href="{team_url}" style="color:#10B981;font-size:12px;word-break:break-all;">
+          {team_url}
+        </a>
+      </p>
+    """
+
+    html_content = _BASE_HTML.format(subject=subject, body=body, year=date.today().year)
+    text_content = (
+        f"Hi {username},\n\n"
+        f"You've been added to the \"{team_name}\" team on NexusPlan with role: {role}.\n\n"
+        f"View the team here: {team_url}\n\n"
+        f"\u2014 The NexusPlan Team"
+    )
+    msg = EmailMultiAlternatives(subject=subject, body=text_content, to=[to_email])
+    msg.attach_alternative(html_content, "text/html")
+    msg.send(fail_silently=True)
+
+
+def _send_team_new_user_invite(
+    *,
+    to_email: str,
+    team_name: str,
+    role: str,
+    register_url: str,
+) -> None:
+    """Send a team invitation to someone who doesn't have a NexusPlan account yet."""
+    from datetime import date
+
+    subject = f"You're invited to join the \"{team_name}\" team on NexusPlan"
+
+    body = f"""
+      <p style="margin:0 0 8px;font-size:13px;font-weight:600;
+                color:#06B6D4;text-transform:uppercase;letter-spacing:0.1em;">
+        Team Invitation
+      </p>
+      <h1 style="margin:0 0 18px;font-size:26px;font-weight:800;
+                 color:#FFFFFF;letter-spacing:-0.5px;line-height:1.2;">
+        You&rsquo;re invited to collaborate
+      </h1>
+      <p style="margin:0 0 24px;font-size:15px;color:#9090B0;line-height:1.7;">
+        Someone has invited you to join a team on
+        <strong style="color:#FFFFFF;">NexusPlan</strong> &mdash;
+        the modern collaborative project management platform.
+        Create your free account to get started.
+      </p>
+
+      <!-- Team card -->
+      <div style="background:#12121C;border:1px solid rgba(255,255,255,0.08);
+                  border-radius:14px;padding:22px 24px;margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;">
+          <div style="width:48px;height:48px;border-radius:14px;flex-shrink:0;
+                      background:linear-gradient(135deg,#06B6D4,#8B5CF6);
+                      display:flex;align-items:center;justify-content:center;">
+            <span style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-1px;">
+              {team_name[:2].upper()}
+            </span>
+          </div>
+          <div>
+            <p style="margin:0 0 2px;font-size:11px;font-weight:700;color:#4B4B6B;
+                      text-transform:uppercase;letter-spacing:0.09em;">You&rsquo;re invited to</p>
+            <p style="margin:0;font-size:20px;font-weight:800;color:#FFFFFF;
+                      letter-spacing:-0.3px;">{team_name}</p>
+          </div>
+        </div>
+        <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#4B4B6B;
+                  text-transform:uppercase;letter-spacing:0.09em;">Your Role</p>
+        {_team_role_badge(role)}
+      </div>
+
+      <!-- CTA -->
+      <div style="text-align:center;margin-bottom:28px;">
+        <a href="{register_url}"
+           style="display:inline-block;background:linear-gradient(135deg,#06B6D4,#8B5CF6);
+                  color:#FFFFFF;text-decoration:none;font-size:15px;font-weight:700;
+                  padding:14px 36px;border-radius:12px;
+                  box-shadow:0 8px 24px rgba(6,182,212,0.35);
+                  letter-spacing:0.01em;">
+          Create Account &amp; Join &rarr;
+        </a>
+      </div>
+
+      <p style="margin:0;font-size:13px;color:#4B4B6B;text-align:center;line-height:1.6;">
+        Or copy this link:<br/>
+        <a href="{register_url}" style="color:#06B6D4;font-size:12px;word-break:break-all;">
+          {register_url}
+        </a>
+      </p>
+    """
+
+    html_content = _BASE_HTML.format(subject=subject, body=body, year=date.today().year)
+    text_content = (
+        f"You've been invited to join the \"{team_name}\" team on NexusPlan "
+        f"with role: {role}.\n\n"
+        f"Create your free account here: {register_url}\n\n"
+        f"\u2014 The NexusPlan Team"
+    )
+    msg = EmailMultiAlternatives(subject=subject, body=text_content, to=[to_email])
+    msg.attach_alternative(html_content, "text/html")
+    msg.send(fail_silently=True)
+
+
 # ---------------------------------------------------------------------------
 # ProjectViewSet
 # ---------------------------------------------------------------------------
@@ -1056,12 +1239,17 @@ class TeamViewSet(viewsets.ModelViewSet):
             )
         return Team.objects.all()
 
+    def create(self, request: Request, *args, **kwargs) -> Response:
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        return Response(TeamSerializer(serializer.instance).data, status=status.HTTP_201_CREATED)
+
     def perform_create(self, serializer):
         owner_id = self.request.headers.get("X-User-Id")
         if not owner_id:
             raise ValidationError({"ownerId": "Missing X-User-Id header."})
         team = serializer.save(ownerId=owner_id)
-        # Auto-add creator as ADMIN member
         TeamMembership.objects.create(team=team, userId=owner_id, role=TeamMemberRole.ADMIN)
 
     def update(self, request: Request, *args, **kwargs) -> Response:
@@ -1191,15 +1379,13 @@ class TeamViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             membership = TeamMembership.objects.create(team=team, userId=user_id, role=role)
-            # Reuse the existing invite email with the team URL
             username = user_info.get("username") or email.split("@")[0]
-            _send_existing_user_invite(
+            _send_team_existing_user_invite(
                 to_email=email,
                 username=username,
-                project_name=f"team \"{team.name}\"",
+                team_name=team.name,
                 role=role,
-                project_url=f"{frontend_url}/teams/{team.id}",
-                frontend_url=frontend_url,
+                team_url=f"{frontend_url}/teams",
             )
             return Response(
                 {
@@ -1218,12 +1404,11 @@ class TeamViewSet(viewsets.ModelViewSet):
                 f"&invite_role={role}"
                 f"&email={urllib.parse.quote(email)}"
             )
-            _send_new_user_invite(
+            _send_team_new_user_invite(
                 to_email=email,
-                project_name=f"team \"{team.name}\"",
+                team_name=team.name,
                 role=role,
                 register_url=register_url,
-                frontend_url=frontend_url,
             )
             return Response(
                 {"detail": "No account found. A registration invitation has been sent."},
