@@ -126,21 +126,10 @@ io.on('connection', (socket) => {
 
         io.to(room).emit('receiveMessage', payload);
 
-        if (!userToken) {
-            console.warn('[sendDM] no token — persistence skipped');
-            return;
-        }
-
-        const authHeaders = {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${userToken}`,
-        };
-
         const saved = await djangoFetch(
             resolveUrl(API_STORE_DM),
             'POST',
-            { sender_id: senderId, receiver_id: receiverId, message },
-            authHeaders
+            { sender_id: senderId, receiver_id: receiverId, message }
         );
 
         const receiverSocketId = usersOnline[receiverId];
@@ -182,21 +171,10 @@ io.on('connection', (socket) => {
 
         io.to(room).emit('receiveMessage', payload);
 
-        if (!userToken) {
-            console.warn('[sendGroupMessage] no token — persistence skipped');
-            return;
-        }
-
-        const authHeaders = {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${userToken}`,
-        };
-
-        await djangoFetch(
+        const saved = await djangoFetch(
             resolveUrl(API_STORE_GROUP_MSG),
             'POST',
-            { sender_id: senderId, room_id: roomId, room_type: roomType, message },
-            authHeaders
+            { sender_id: senderId, room_id: roomId, room_type: roomType, message }
         );
     });
 

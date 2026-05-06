@@ -25,8 +25,11 @@ def user_status(request, user_id):
     return Response({"status": "ok"})
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def store_dm(request):
+    if not verify_internal_key(request):
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        
     sender_id = request.data.get("sender_id")
     receiver_id = request.data.get("receiver_id")
     message = request.data.get("message")
@@ -42,8 +45,11 @@ def store_dm(request):
     return Response({"status": "ok", "id": dm.id})
 
 @api_view(["POST"])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def store_group_msg(request):
+    if not verify_internal_key(request):
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+        
     sender_id = request.data.get("sender_id")
     room_id = request.data.get("room_id")
     room_type = request.data.get("room_type", "group")
