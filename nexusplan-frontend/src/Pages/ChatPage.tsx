@@ -134,14 +134,19 @@ const ChatPage: React.FC = () => {
     });
     sock.on('disconnect', () => setConnected(false));
     sock.on('receiveMessage', (data: any) => {
-      setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
-        senderId: data.senderId,
-        senderName: data.senderId === user?.id ? 'You' : data.senderId,
-        message: data.message,
-        timestamp: data.timestamp || new Date().toISOString(),
-        type: data.type,
-      }]);
+      setMessages(prev => {
+        // Look up the sender's name from the rooms array (which stores dm rooms mapping userId to name)
+        // Wait, rooms is a state variable. We can't access its latest value reliably here without a ref.
+        // Instead, let's just push the raw data and render the name in the component.
+        return [...prev, {
+          id: crypto.randomUUID(),
+          senderId: data.senderId,
+          senderName: data.senderId === user?.id ? 'You' : data.senderId,
+          message: data.message,
+          timestamp: data.timestamp || new Date().toISOString(),
+          type: data.type,
+        }];
+      });
     });
     sock.on('userTyping', (data: any) => {
       if (data.userId !== user?.id) {
@@ -186,15 +191,6 @@ const ChatPage: React.FC = () => {
     } else {
       socketRef.current.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id });
     }
-
-    setMessages(prev => [...prev, {
-      id: crypto.randomUUID(),
-      senderId: user?.id || 'me',
-      senderName: 'You',
-      message: text,
-      timestamp: new Date().toISOString(),
-      type: activeRoom.type,
-    }]);
   }, [input, activeRoom, user]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -326,21 +322,31 @@ const ChatPage: React.FC = () => {
           )}
 
           {messages.map((msg, i) => {
-            const isMe = msg.senderId === (user?.id || 'me') || msg.senderName === 'You';
+            const isMe = msg.senderId === user?.id || msg.senderName === 'You';
             const showAvatar = !isMe && (i === 0 || messages[i-1]?.senderId !== msg.senderId);
+            
+            // Look up real name
+            let displayName = msg.senderName;
+            if (!isMe && msg.senderId) {
+              const dmRoom = rooms.find(r => r.type === 'dm' && r.id === msg.senderId);
+              if (dmRoom) {
+                displayName = dmRoom.name;
+              }
+            }
+
             return (
               <div key={msg.id} className={`chat-msg-row${isMe ? ' chat-msg-row--me' : ''}`}>
                 {!isMe && (
                   <div className="chat-msg-avatar">
                     {showAvatar
-                      ? <AvatarChip name={msg.senderName || msg.senderId} size={32} color={colorFor(msg.senderId)} />
+                      ? <AvatarChip name={displayName || msg.senderId} size={32} color={colorFor(msg.senderId)} />
                       : <div style={{ width: 32 }} />
                     }
                   </div>
                 )}
                 <div className="chat-msg-content">
                   {showAvatar && !isMe && (
-                    <p className="chat-msg-sender">{msg.senderName || msg.senderId}</p>
+                    <p className="chat-msg-sender">{displayName || msg.senderId}</p>
                   )}
                   <div className={`chat-bubble${isMe ? ' chat-bubble--me' : ''}`}>
                     <p className="chat-bubble-text">{msg.message}</p>

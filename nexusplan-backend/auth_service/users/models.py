@@ -32,6 +32,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 
+    is_online = models.BooleanField(default=False)
+    last_seen = models.DateTimeField(null=True, blank=True)
+
     createdAt = models.DateTimeField(auto_now_add=True)
     updatedAt = models.DateTimeField(auto_now=True)
 
@@ -66,3 +69,54 @@ class Token(models.Model):
 
     def __str__(self) -> str:
         return f"Token({self.user.email}, valid={self.isValid})"
+
+
+class DirectMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sender = models.ForeignKey(User, related_name="sent_dms", on_delete=models.CASCADE)
+    receiver = models.ForeignKey(User, related_name="received_dms", on_delete=models.CASCADE)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = "direct_messages"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"DM {self.sender.email} -> {self.receiver.email}"
+
+
+class GroupMessage(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sender = models.ForeignKey(User, related_name="group_messages", on_delete=models.CASCADE)
+    room_id = models.CharField(max_length=100)
+    room_type = models.CharField(max_length=50, default="group")
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "group_messages"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"GroupMsg in {self.room_id} by {self.sender.email}"
+
+
+class Notification(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(User, related_name="notifications", on_delete=models.CASCADE)
+    from_user = models.ForeignKey(User, related_name="sent_notifications", on_delete=models.SET_NULL, null=True, blank=True)
+    type = models.CharField(max_length=50)
+    data = models.JSONField(default=dict)
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notifications"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Notification {self.type} for {self.user.email}"
+
+

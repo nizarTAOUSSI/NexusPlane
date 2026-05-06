@@ -14,6 +14,9 @@ urlpatterns = [
     # Authentication endpoints
     path("api/auth/", include("users.urls")),
 
+    # Messages endpoints
+    path("api/messages/", include("users.urls_messages")),
+
     # OpenAPI schema + Swagger UI + ReDoc
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
