@@ -6,6 +6,7 @@ import SignupPage from '../Pages/SignupPage';
 import DashboardPage from '../Pages/DashboardPage';
 import ProjectsPage from '../Pages/ProjectsPage';
 import ProjectDetailPage from '../Pages/ProjectDetailPage';
+import TeamsPage from '../Pages/TeamsPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import ProtectedRoute from './ProtectedRoute';
 import TaskBoard from '../components/Tasks/TaskBoard';
@@ -36,6 +37,7 @@ export const router = createBrowserRouter([
           { path: '/dashboard', element: <DashboardPage /> },
           { path: '/projects', element: <ProjectsPage /> },
           { path: '/projects/:id', element: <ProjectDetailPage /> },
+          { path: '/teams', element: <TeamsPage /> },
           { path: '/dashboard/revenue', element: <DashboardPage /> },
           { path: '/dashboard/insights', element: <DashboardPage /> },
           { path: '/dashboard/contracts', element: <DashboardPage /> },

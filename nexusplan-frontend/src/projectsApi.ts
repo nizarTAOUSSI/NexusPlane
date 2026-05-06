@@ -57,4 +57,13 @@ export const projectsApi = {
 
   inviteMember: (projectId: string, payload: InvitePayload) =>
     api.post(`/projects/${projectId}/invite/`, payload).then(r => r.data),
+
+  quitProject: (projectId: string) =>
+    api.post(`/projects/${projectId}/quit/`).then(r => r.data),
+
+  kickMember: (projectId: string, userId: string) =>
+    api.post(`/projects/${projectId}/kick/`, { userId }).then(r => r.data),
+
+  removeMembership: (membershipId: string) =>
+    api.delete(`/memberships/${membershipId}/`),
 };

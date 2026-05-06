@@ -14,6 +14,7 @@ import {
   Search,
   PanelLeftClose,
   PanelLeftOpen,
+  Users,
 } from 'lucide-react';
 import { IoFolderOutline } from 'react-icons/io5';
 import { LuKanban } from 'react-icons/lu';
@@ -24,15 +25,10 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
     path: '/dashboard',
     label: 'Dashboard',
-    // sub: [
-    //   { id: 'project',  label: 'Project',  path: '/dashboard/project'  },
-    //   { id: 'revenue',  label: 'Revenue',  path: '/dashboard/revenue'  },
-    //   { id: 'insights', label: 'Insights', path: '/dashboard/insights' },
-    // ],
   },
-  { id: 'projetcs', icon: IoFolderOutline, path: '/Projects', label: 'My Projects' },
-  { id: 'tasks', icon: LuKanban, path: '/Tasks', label: 'Tasks' },
-
+  { id: 'projects', icon: IoFolderOutline, path: '/projects', label: 'My Projects' },
+  { id: 'tasks',    icon: LuKanban,        path: '/tasks',    label: 'Tasks' },
+  { id: 'teams',    icon: Users,           path: '/teams',    label: 'Teams' },
 ];
 
 const MESSAGES = [
@@ -44,6 +40,7 @@ const MESSAGES = [
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   projects: 'My Projects',
+  teams: 'Teams',
   revenue: 'Revenue',
   insights: 'Insights',
   contracts: 'Contracts',

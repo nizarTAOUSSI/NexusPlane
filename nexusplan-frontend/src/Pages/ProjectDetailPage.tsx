@@ -4,10 +4,11 @@ import {
   ArrowLeft, Users, Calendar, Archive, Trash2,
   Clock, Crown, Eye, Edit3, RefreshCw, FolderOpen,
   UserPlus, X, Send, CheckCircle, AlertCircle, Mail,
-  ChevronDown, Shield,
+  ChevronDown, Shield, LogOut, UserMinus, Loader2 as LoaderIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { projectsApi, type Project, type Membership, type InvitePayload } from '../projectsApi';
+import { teamsApi, type Team } from '../teamsApi';
 import { useAuth } from '../context/AuthContext';
 
 const fmt = (iso: string) =>
@@ -292,6 +293,211 @@ const InviteModal: React.FC<InviteModalProps> = ({
   );
 };
 
+// ── Add Team to Project Modal ──────────────────────────────────────────────
+
+interface AddTeamModalProps {
+  projectId: string;
+  projectName: string;
+  onClose: () => void;
+  onAdded: () => void;
+}
+
+const PROJECT_ROLES: Array<{ value: 'VIEWER' | 'CONTRIBUTOR' | 'MANAGER'; label: string }> = [
+  { value: 'VIEWER',      label: 'Viewer' },
+  { value: 'CONTRIBUTOR', label: 'Contributor' },
+  { value: 'MANAGER',     label: 'Manager' },
+];
+
+const AddTeamModal: React.FC<AddTeamModalProps> = ({
+  projectId, projectName, onClose, onAdded,
+}) => {
+  const { user } = useAuth();
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
+  const [role, setRole] = useState<'VIEWER' | 'CONTRIBUTOR' | 'MANAGER'>('CONTRIBUTOR');
+  const [roleOpen, setRoleOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ added: number; skipped: number } | null>(null);
+  const [error, setError] = useState('');
+  const roleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (roleRef.current && !roleRef.current.contains(e.target as Node)) setRoleOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    teamsApi.list(user.id)
+      .then(data => { setTeams(data); if (data.length > 0) setSelectedTeam(data[0]); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user?.id]);
+
+  const handleSubmit = async () => {
+    if (!selectedTeam) return;
+    setSubmitting(true); setError('');
+    try {
+      const res = await teamsApi.inviteToProject(selectedTeam.id, { projectId, role });
+      setResult({ added: res.added, skipped: res.skipped });
+      onAdded();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+        ?? 'Failed to invite team.';
+      setError(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="invite-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <motion.div
+        className="invite-modal"
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 16 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="invite-modal-header">
+          <div className="invite-modal-icon" style={{ background: 'rgba(139,92,246,0.15)', color: '#8B5CF6' }}>
+            <Users size={20} />
+          </div>
+          <div className="invite-modal-title-wrap">
+            <h2 className="invite-modal-title">Add Team to Project</h2>
+            <p className="invite-modal-sub">Invite all members of a team to <strong>{projectName}</strong></p>
+          </div>
+          <button className="invite-modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+
+        {result ? (
+          <motion.div className="invite-success"
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="invite-success-icon">
+              <CheckCircle size={28} />
+            </div>
+            <p className="invite-success-title">Team Added!</p>
+            <p className="invite-success-msg">
+              {result.added} member{result.added !== 1 ? 's' : ''} added
+              {result.skipped > 0 ? `, ${result.skipped} already in project` : ''}.
+            </p>
+            <div className="invite-success-actions">
+              <button className="invite-btn-primary" onClick={onClose}>Done</button>
+            </div>
+          </motion.div>
+        ) : (
+          <div className="invite-form">
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                <LoaderIcon size={24} className="projects-spinner" />
+              </div>
+            ) : teams.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-2)' }}>
+                <Users size={36} strokeWidth={1} style={{ opacity: 0.3, marginBottom: 8 }} />
+                <p>You have no teams yet.</p>
+                <p style={{ fontSize: 13 }}>Create a team first from the Teams page.</p>
+              </div>
+            ) : (
+              <>
+                <div className="invite-field">
+                  <label className="invite-label">Select Team</label>
+                  <div className="atm-team-list">
+                    {teams.map(t => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`atm-team-opt ${selectedTeam?.id === t.id ? 'atm-team-opt--active' : ''}`}
+                        onClick={() => setSelectedTeam(t)}
+                      >
+                        <div className="atm-team-av">{t.name.slice(0, 2).toUpperCase()}</div>
+                        <div className="atm-team-info">
+                          <span className="atm-team-name">{t.name}</span>
+                          <span className="atm-team-count">
+                            {t.memberCount} member{t.memberCount !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {selectedTeam?.id === t.id && <CheckCircle size={16} className="atm-team-check" />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="invite-field">
+                  <label className="invite-label">Role to assign</label>
+                  <div className="invite-role-select" ref={roleRef}>
+                    <button
+                      type="button"
+                      className="invite-role-btn"
+                      onClick={() => setRoleOpen(o => !o)}
+                    >
+                      <span className={`invite-role-dot invite-role-dot--${role.toLowerCase()}`} />
+                      <span className="invite-role-btn-label">{role}</span>
+                      <ChevronDown size={15} className={`invite-role-chevron ${roleOpen ? 'invite-role-chevron--open' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                      {roleOpen && (
+                        <motion.div
+                          className="invite-role-dropdown"
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.14 }}
+                        >
+                          {PROJECT_ROLES.map(r => (
+                            <button
+                              key={r.value}
+                              type="button"
+                              className={`invite-role-option ${role === r.value ? 'invite-role-option--active' : ''}`}
+                              onClick={() => { setRole(r.value); setRoleOpen(false); }}
+                            >
+                              <span className={`invite-role-dot invite-role-dot--${r.value.toLowerCase()}`} />
+                              <span>{r.label}</span>
+                              {role === r.value && <CheckCircle size={14} className="invite-role-check" />}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="invite-error">
+                    <AlertCircle size={14} /><span>{error}</span>
+                  </div>
+                )}
+
+                <div className="invite-actions">
+                  <button type="button" className="invite-btn-ghost" onClick={onClose}>Cancel</button>
+                  <button
+                    className="invite-btn-primary"
+                    disabled={!selectedTeam || submitting}
+                    onClick={handleSubmit}
+                  >
+                    {submitting
+                      ? <><LoaderIcon size={14} className="projects-spinner" style={{ display: 'inline-block', marginRight: 6 }} /> Adding…</>
+                      : <><Users size={14} /> Add Team</>}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
 
 const ProjectDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -303,6 +509,9 @@ const ProjectDetailPage: React.FC = () => {
   const [archiving, setArchiving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [kicking, setKicking] = useState<string | null>(null);
+  const [quitting, setQuitting] = useState(false);
   const { user } = useAuth();
 
   const fetchAll = async () => {
@@ -347,6 +556,35 @@ const ProjectDetailPage: React.FC = () => {
     } catch {
       alert('Could not delete project.');
       setDeleting(false);
+    }
+  };
+
+  const handleKick = async (membership: Membership) => {
+    if (!project) return;
+    if (!confirm(`Remove ${membership.username || membership.email || 'this member'} from the project?`)) return;
+    setKicking(membership.userId);
+    try {
+      await projectsApi.kickMember(project.id, membership.userId);
+      setMembers(prev => prev.filter(m => m.userId !== membership.userId));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Could not remove member.';
+      alert(msg);
+    } finally {
+      setKicking(null);
+    }
+  };
+
+  const handleQuit = async () => {
+    if (!project || quitting) return;
+    if (!confirm('Leave this project?')) return;
+    setQuitting(true);
+    try {
+      await projectsApi.quitProject(project.id);
+      navigate('/projects');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Could not leave project.';
+      alert(msg);
+      setQuitting(false);
     }
   };
 
@@ -412,19 +650,31 @@ const ProjectDetailPage: React.FC = () => {
               className="pd-action-btn pd-action-btn--warning"
               onClick={handleArchive}
               disabled={archiving || project.ownerId !== user?.id}
+              title={project.ownerId !== user?.id ? 'Only the project owner can archive' : undefined}
             >
               <Archive size={15} />
               {archiving ? 'Archiving…' : 'Archive'}
             </button>
           )}
-          <button
-            className="pd-action-btn pd-action-btn--danger"
-            onClick={handleDelete}
-            disabled={deleting || project.ownerId !== user?.id}
-          >
-            <Trash2 size={15} />
-            {deleting ? 'Deleting…' : 'Delete'}
-          </button>
+          {project.ownerId === user?.id ? (
+            <button
+              className="pd-action-btn pd-action-btn--danger"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              <Trash2 size={15} />
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+          ) : (
+            <button
+              className="pd-action-btn pd-action-btn--warning"
+              onClick={handleQuit}
+              disabled={quitting}
+            >
+              <LogOut size={15} />
+              {quitting ? 'Leaving…' : 'Leave Project'}
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -473,14 +723,28 @@ const ProjectDetailPage: React.FC = () => {
             <button className="pd-section-refresh" onClick={fetchAll} title="Refresh members">
               <RefreshCw size={14} />
             </button>
-            <button
-              className="pd-invite-btn"
-              onClick={() => setShowInvite(true)}
-              title="Invite a member"
-            >
-              <UserPlus size={15} />
-              <span>Invite</span>
-            </button>
+            {(project.ownerId === user?.id ||
+              members.find(m => m.userId === user?.id && (m.role === 'MANAGER' || m.role === 'OWNER'))
+            ) && (
+              <>
+                <button
+                  className="pd-invite-btn pd-invite-btn--team"
+                  onClick={() => setShowAddTeam(true)}
+                  title="Add entire team to project"
+                >
+                  <Users size={15} />
+                  <span>Add Team</span>
+                </button>
+                <button
+                  className="pd-invite-btn"
+                  onClick={() => setShowInvite(true)}
+                  title="Invite a member"
+                >
+                  <UserPlus size={15} />
+                  <span>Invite</span>
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -523,6 +787,20 @@ const ProjectDetailPage: React.FC = () => {
                   {roleIcon(m.role)}
                   {m.role}
                 </span>
+
+                {/* Kick button — owner or manager can remove non-owners */}
+                {project.ownerId === user?.id && m.role !== 'OWNER' && (
+                  <button
+                    className="pd-kick-btn"
+                    title="Remove member"
+                    disabled={kicking === m.userId}
+                    onClick={() => handleKick(m)}
+                  >
+                    {kicking === m.userId
+                      ? <LoaderIcon size={13} className="pd-spin" />
+                      : <UserMinus size={13} />}
+                  </button>
+                )}
               </motion.div>
             ))}
           </div>
@@ -538,6 +816,14 @@ const ProjectDetailPage: React.FC = () => {
             projectName={project.name}
             onClose={() => setShowInvite(false)}
             onMemberAdded={fetchAll}
+          />
+        )}
+        {showAddTeam && (
+          <AddTeamModal
+            projectId={project.id}
+            projectName={project.name}
+            onClose={() => setShowAddTeam(false)}
+            onAdded={fetchAll}
           />
         )}
       </AnimatePresence>
