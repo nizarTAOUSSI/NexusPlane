@@ -17,10 +17,19 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd ~/NexusPlane/nexusplan-backend
-            
+            # ── 1. Pull main monorepo (backend, frontend, nginx, …) ───────────
+            cd ~/NexusPlane
             git pull origin main
-            
+
+            # ── 2. Pull chat service — branch: nizar ──────────────────────────
+            cd ~/NexusPlane/chat
+            git fetch origin
+            git checkout nizar
+            git pull origin nizar
+
+            # ── 3. Rebuild & restart all Docker services ──────────────────────
+            cd ~/NexusPlane/nexusplan-backend
             docker compose up --build -d
-            
+
+            # ── 4. Clean up dangling images ───────────────────────────────────
             docker image prune -f
