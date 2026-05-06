@@ -20,11 +20,6 @@ jobs:
             cd ~/NexusPlane
             git pull origin main
 
-            cd ~/NexusPlane/chat
-            git fetch origin
-            git checkout nizar
-            git pull origin nizar
-
             cd ~/NexusPlane/nexusplan-backend
             docker compose up --build -d
 
