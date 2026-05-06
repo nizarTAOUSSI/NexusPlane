@@ -293,7 +293,6 @@ const InviteModal: React.FC<InviteModalProps> = ({
   );
 };
 
-// ── Add Team to Project Modal ──────────────────────────────────────────────
 
 interface AddTeamModalProps {
   projectId: string;
@@ -788,7 +787,6 @@ const ProjectDetailPage: React.FC = () => {
                   {m.role}
                 </span>
 
-                {/* Kick button — owner or manager can remove non-owners */}
                 {project.ownerId === user?.id && m.role !== 'OWNER' && (
                   <button
                     className="pd-kick-btn"

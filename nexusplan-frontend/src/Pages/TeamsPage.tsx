@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Plus, Search, LayoutGrid, List, RefreshCw, Users,
   X, Send, Crown, UserPlus, CheckCircle, AlertCircle,
@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { teamsApi, type Team, type TeamMember } from '../teamsApi';
 import { useAuth } from '../context/AuthContext';
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -25,7 +24,6 @@ function teamColor(id: string) {
   return PALETTE[h % PALETTE.length];
 }
 
-// ─── Create Team Modal (matches projects-modal style) ─────────────────────────
 
 interface CreateModalProps {
   userId: string;
@@ -106,7 +104,6 @@ const CreateModal: React.FC<CreateModalProps> = ({ userId, onClose, onCreate }) 
   );
 };
 
-// ─── Invite Member Modal ───────────────────────────────────────────────────────
 
 interface InviteModalProps {
   team: Team;
@@ -232,7 +229,6 @@ const InviteModal: React.FC<InviteModalProps> = ({ team, onClose, onInvited }) =
   );
 };
 
-// ─── Team Card (grid) ─────────────────────────────────────────────────────────
 
 interface TeamCardProps {
   team: Team;
@@ -273,7 +269,6 @@ const TeamCard: React.FC<TeamCardProps> = ({ team, isOwner, onClick }) => {
   );
 };
 
-// ─── Team Detail Drawer ───────────────────────────────────────────────────────
 
 interface DrawerProps {
   team: Team;
@@ -330,7 +325,6 @@ const TeamDrawer: React.FC<DrawerProps> = ({
         exit={{ x: '100%' }}
         transition={{ type: 'spring', stiffness: 340, damping: 34 }}
       >
-        {/* Header */}
         <div className="teams-drawer-head" style={{ borderBottom: `2px solid ${color}40` }}>
           <div className="teams-drawer-av" style={{ background: `linear-gradient(135deg, ${color}, ${color}bb)` }}>
             {initials(team.name)}
@@ -342,7 +336,6 @@ const TeamDrawer: React.FC<DrawerProps> = ({
           <button className="teams-drawer-close" onClick={onClose}><X size={18} /></button>
         </div>
 
-        {/* Meta */}
         <div className="teams-drawer-meta">
           <span className="projects-status-badge projects-status-badge--active">
             <Users size={11} /> {team.memberCount} members
@@ -368,7 +361,6 @@ const TeamDrawer: React.FC<DrawerProps> = ({
           )}
         </div>
 
-        {/* Members */}
         <div className="teams-drawer-section">
           <p className="teams-drawer-section-title">Members</p>
           {loading ? (
@@ -436,7 +428,6 @@ const TeamDrawer: React.FC<DrawerProps> = ({
   );
 };
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 
 const TeamsPage: React.FC = () => {
   const { user } = useAuth();
@@ -555,7 +546,6 @@ const TeamsPage: React.FC = () => {
       </motion.div>
     );
 
-    // List view
     return (
       <div className="projects-list">
         {filtered.map((t, i) => (
@@ -587,7 +577,6 @@ const TeamsPage: React.FC = () => {
 
   return (
     <div className="projects-page">
-      {/* Header */}
       <div className="projects-header">
         <div>
           <h1 className="projects-title">My Teams</h1>
@@ -601,7 +590,6 @@ const TeamsPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Toolbar */}
       <div className="projects-toolbar">
         <div className="projects-search">
           <Search size={14} className="projects-search-icon" strokeWidth={2} />
@@ -631,7 +619,6 @@ const TeamsPage: React.FC = () => {
 
       {renderContent()}
 
-      {/* Modals & Drawer */}
       <AnimatePresence>
         {showCreate && (
           <CreateModal
