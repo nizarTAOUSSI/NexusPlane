@@ -56,6 +56,8 @@ const ChatPage: React.FC = () => {
 
   const [rooms, setRooms]           = useState<ChatRoom[]>([]);
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
+  const activeRoomRef = useRef<ChatRoom | null>(null);
+  useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
   const [loading, setLoading]       = useState(true);
   const [messages, setMessages]     = useState<Message[]>([]);
   const [input, setInput]           = useState('');
@@ -134,10 +136,16 @@ const ChatPage: React.FC = () => {
     });
     sock.on('disconnect', () => setConnected(false));
     sock.on('receiveMessage', (data: any) => {
+      const current = activeRoomRef.current;
+      if (!current) return;
+
+      if (data.type === 'group' && data.roomId !== current.id) return;
+      if (data.type === 'dm') {
+        const otherUserId = data.senderId === user?.id ? data.receiverId : data.senderId;
+        if (current.type !== 'dm' || current.id !== otherUserId) return;
+      }
+
       setMessages(prev => {
-        // Look up the sender's name from the rooms array (which stores dm rooms mapping userId to name)
-        // Wait, rooms is a state variable. We can't access its latest value reliably here without a ref.
-        // Instead, let's just push the raw data and render the name in the component.
         return [...prev, {
           id: crypto.randomUUID(),
           senderId: data.senderId,
