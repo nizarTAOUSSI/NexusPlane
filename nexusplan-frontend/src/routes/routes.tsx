@@ -7,6 +7,7 @@ import DashboardPage from '../Pages/DashboardPage';
 import ProjectsPage from '../Pages/ProjectsPage';
 import ProjectDetailPage from '../Pages/ProjectDetailPage';
 import TeamsPage from '../Pages/TeamsPage';
+import ChatPage from '../Pages/ChatPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import ProtectedRoute from './ProtectedRoute';
 import TaskBoard from '../components/Tasks/TaskBoard';
@@ -44,6 +45,7 @@ export const router = createBrowserRouter([
           { path: '/dashboard/payments', element: <DashboardPage /> },
           { path: '/dashboard/notifications', element: <DashboardPage /> },
           { path: '/tasks', element: <TaskBoard /> },
+          { path: '/chat', element: <ChatPage /> },
         ],
       },  
     ],

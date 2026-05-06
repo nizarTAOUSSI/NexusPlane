@@ -1,0 +1,445 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { useAuth } from '../context/AuthContext';
+import { teamsApi } from '../teamsApi';
+import type { TeamMember } from '../teamsApi';
+
+interface ChatRoom {
+  id: string;
+  name: string;
+  type: 'dm' | 'group';
+  avatar?: string;
+  lastMsg?: string;
+  lastTime?: string;
+  unread?: number;
+  online?: boolean;
+  members?: number;
+}
+
+interface Message {
+  id: string;
+  senderId: string;
+  senderName?: string;
+  message: string;
+  timestamp: string;
+  type: 'dm' | 'group';
+}
+
+const SOCKET_URL = import.meta.env.VITE_CHAT_URL || 'https://nexusplane.duckdns.org';
+
+
+
+function initials(name: string) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}
+function fmtTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const AvatarChip: React.FC<{ name: string; size?: number; color?: string }> = ({ name, size = 36, color = '#6366F1' }) => (
+  <div style={{
+    width: size, height: size, borderRadius: '50%', background: color,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    color: '#fff', fontWeight: 700, fontSize: size * 0.35, flexShrink: 0,
+    letterSpacing: '-0.5px',
+  }}>
+    {initials(name)}
+  </div>
+);
+
+const COLORS = ['#6366F1','#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#EC4899','#3B82F6'];
+function colorFor(id: string) { return COLORS[id.charCodeAt(0) % COLORS.length]; }
+
+const ChatPage: React.FC = () => {
+  const { user, token } = useAuth() as any;
+
+  const [rooms, setRooms]           = useState<ChatRoom[]>([]);
+  const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [messages, setMessages]     = useState<Message[]>([]);
+  const [input, setInput]           = useState('');
+  const [search, setSearch]         = useState('');
+  const [connected, setConnected]   = useState(false);
+  const [typing, setTyping]         = useState<string | null>(null);
+
+  const socketRef  = useRef<Socket | null>(null);
+  const bottomRef  = useRef<HTMLDivElement>(null);
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        setLoading(true);
+        const myTeams = await teamsApi.list();
+        
+        const newRooms: ChatRoom[] = [];
+        const usersMap = new Map<string, TeamMember>();
+
+        // Add Teams as Group Rooms
+        for (const team of myTeams) {
+          newRooms.push({
+            id: team.id,
+            name: team.name,
+            type: 'group',
+            members: team.memberCount,
+          });
+
+          // Fetch members to populate DMs
+          const members = await teamsApi.getMembers(team.id);
+          for (const m of members) {
+            if (m.userId !== user?.id) {
+              usersMap.set(m.userId, m);
+            }
+          }
+        }
+
+        // Add unique members as DM rooms
+        for (const [userId, m] of usersMap.entries()) {
+          newRooms.push({
+            id: userId,
+            name: m.username || m.email || 'Unknown User',
+            type: 'dm',
+            avatar: m.avatar || undefined,
+            online: false // could be synced with socket presence
+          });
+        }
+
+        setRooms(newRooms);
+        if (newRooms.length > 0) setActiveRoom(newRooms[0]);
+      } catch (err) {
+        console.error("Failed to load chat data", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    
+    if (user?.id) {
+      loadData();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user?.id || !token) return;
+
+    const sock = io(SOCKET_URL, {
+      reconnectionAttempts: 3,
+      timeout: 5000
+    });
+    socketRef.current = sock;
+
+    sock.on('connect', () => {
+      setConnected(true);
+      sock.emit('userOnline', { userId: user.id, token: token });
+    });
+    sock.on('disconnect', () => setConnected(false));
+    sock.on('receiveMessage', (data: any) => {
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        senderId: data.senderId,
+        senderName: data.senderId === user?.id ? 'You' : data.senderId,
+        message: data.message,
+        timestamp: data.timestamp || new Date().toISOString(),
+        type: data.type,
+      }]);
+    });
+    sock.on('userTyping', (data: any) => {
+      if (data.userId !== user?.id) {
+        setTyping(data.isTyping ? data.userId : null);
+      }
+    });
+
+    return () => { sock.disconnect(); };
+  }, [user?.id, token]);
+
+  useEffect(() => {
+    if (!activeRoom) return;
+    setMessages([]);
+    setTyping(null);
+    const sock = socketRef.current;
+    if (!sock) return;
+    sock.emit('joinRoom', { 
+      type: activeRoom.type, 
+      roomId: activeRoom.id, 
+      targetUserId: activeRoom.id,
+      senderId: user?.id
+    });
+  }, [activeRoom?.id, user?.id]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = useCallback(() => {
+    const text = input.trim();
+    if (!text || !socketRef.current) return;
+    setInput('');
+
+    if (!activeRoom) return;
+    if (activeRoom.type === 'group') {
+      socketRef.current.emit('sendGroupMessage', {
+        roomId: activeRoom.id,
+        roomType: 'group',
+        message: text,
+        senderId: user?.id
+      });
+    } else {
+      socketRef.current.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id });
+    }
+
+    setMessages(prev => [...prev, {
+      id: crypto.randomUUID(),
+      senderId: user?.id || 'me',
+      senderName: 'You',
+      message: text,
+      timestamp: new Date().toISOString(),
+      type: activeRoom.type,
+    }]);
+  }, [input, activeRoom, user]);
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+
+  const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInput(e.target.value);
+    const sock = socketRef.current;
+    if (!sock || !activeRoom || !user) return;
+    
+    let room = '';
+    if (activeRoom.type === 'group') {
+      room = `group_${activeRoom.id}`;
+    } else {
+      const ids = [user.id, activeRoom.id].sort();
+      room = `dm_${ids[0]}_${ids[1]}`;
+    }
+    
+    sock.emit('typing', { room, isTyping: true });
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    typingTimer.current = setTimeout(() => sock.emit('typing', { room, isTyping: false }), 1500);
+  };
+
+  const filtered = rooms.filter(r =>
+    r.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) {
+    return <div className="chat-page" style={{ alignItems: 'center', justifyContent: 'center' }}>Loading chats...</div>;
+  }
+
+  return (
+    <div className="chat-page">
+      <aside className="chat-sidebar">
+        <div className="chat-sidebar-header">
+          <div>
+            <h2 className="chat-sidebar-title">Messages</h2>
+            <p className="chat-sidebar-sub">Team conversations</p>
+          </div>
+          <button className="chat-compose-btn" title="New chat">
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="chat-search-wrap">
+          <svg className="chat-search-icon" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input
+            className="chat-search-input"
+            placeholder="Search conversations…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="chat-room-list">
+          <p className="chat-room-section-label">Channels & Groups</p>
+          {filtered.map(room => (
+            <button
+              key={room.id}
+              className={`chat-room-item${activeRoom?.id === room.id ? ' chat-room-item--active' : ''}`}
+              onClick={() => setActiveRoom(room)}
+            >
+              <div className="chat-room-avatar-wrap">
+                <AvatarChip name={room.name} size={42} color={colorFor(room.id)} />
+                {room.online && <span className="chat-room-online-dot" />}
+              </div>
+              <div className="chat-room-info">
+                <div className="chat-room-name-row">
+                  <span className="chat-room-name">{room.name}</span>
+                  <span className="chat-room-time">{room.lastTime}</span>
+                </div>
+                <div className="chat-room-last-row">
+                  <span className="chat-room-last">{room.lastMsg}</span>
+                  {room.unread ? <span className="chat-room-badge">{room.unread}</span> : null}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      {activeRoom ? (
+        <>
+          <div className="chat-main">
+        <div className="chat-topbar">
+          <div className="chat-topbar-left">
+            <AvatarChip name={activeRoom.name} size={40} color={colorFor(activeRoom.id)} />
+            <div>
+              <p className="chat-topbar-name">{activeRoom.name}</p>
+              <p className="chat-topbar-meta">
+                {activeRoom.type === 'group'
+                  ? `${activeRoom.members ?? 0} members`
+                  : connected ? 'Online' : 'Offline'}
+              </p>
+            </div>
+          </div>
+          <div className="chat-topbar-actions">
+            <div className={`chat-status-dot${connected ? ' chat-status-dot--on' : ''}`} title={connected ? 'Connected' : 'Disconnected'} />
+            <button className="chat-topbar-btn" title="Search in chat">
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+            </button>
+            <button className="chat-topbar-btn" title="Members">
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div className="chat-messages">
+          {messages.length === 0 && (
+            <div className="chat-empty">
+              <div className="chat-empty-icon">
+                <svg width="48" height="48" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" opacity="0.3">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              </div>
+              <p className="chat-empty-text">No messages yet</p>
+              <p className="chat-empty-sub">Start the conversation in <strong>{activeRoom.name}</strong></p>
+            </div>
+          )}
+
+          {messages.map((msg, i) => {
+            const isMe = msg.senderId === (user?.id || 'me') || msg.senderName === 'You';
+            const showAvatar = !isMe && (i === 0 || messages[i-1]?.senderId !== msg.senderId);
+            return (
+              <div key={msg.id} className={`chat-msg-row${isMe ? ' chat-msg-row--me' : ''}`}>
+                {!isMe && (
+                  <div className="chat-msg-avatar">
+                    {showAvatar
+                      ? <AvatarChip name={msg.senderName || msg.senderId} size={32} color={colorFor(msg.senderId)} />
+                      : <div style={{ width: 32 }} />
+                    }
+                  </div>
+                )}
+                <div className="chat-msg-content">
+                  {showAvatar && !isMe && (
+                    <p className="chat-msg-sender">{msg.senderName || msg.senderId}</p>
+                  )}
+                  <div className={`chat-bubble${isMe ? ' chat-bubble--me' : ''}`}>
+                    <p className="chat-bubble-text">{msg.message}</p>
+                  </div>
+                  <p className="chat-msg-time">{fmtTime(msg.timestamp)}</p>
+                </div>
+              </div>
+            );
+          })}
+
+          {typing && (
+            <div className="chat-msg-row">
+              <div className="chat-msg-avatar">
+                <AvatarChip name={typing} size={32} color={colorFor(typing)} />
+              </div>
+              <div className="chat-bubble chat-bubble--typing">
+                <span className="chat-typing-dot" /><span className="chat-typing-dot" /><span className="chat-typing-dot" />
+              </div>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <div className="chat-input-bar">
+          <button className="chat-input-action" title="Attach file">
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </button>
+          <input
+            className="chat-input"
+            placeholder={`Message ${activeRoom.name}…`}
+            value={input}
+            onChange={onInputChange}
+            onKeyDown={onKeyDown}
+          />
+          <button className="chat-input-action" title="Emoji">
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+            </svg>
+          </button>
+          <button
+            className="chat-send-btn"
+            onClick={sendMessage}
+            disabled={!input.trim()}
+            title="Send"
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <aside className="chat-right-panel">
+        <div className="chat-right-header">
+          <AvatarChip name={activeRoom.name} size={52} color={colorFor(activeRoom.id)} />
+          <p className="chat-right-name">{activeRoom.name}</p>
+          <p className="chat-right-type">
+            {activeRoom.type === 'group' ? `Group · ${activeRoom.members} members` : 'Direct Message'}
+          </p>
+        </div>
+
+        <div className="chat-right-section">
+          <p className="chat-right-section-title">Members</p>
+          <div className="chat-right-members">
+            {(['Alice Martin','Bob Chen','Sara Okafor','Tom Lee'].slice(0, activeRoom.members ?? 4)).map((name) => (
+              <div key={name} className="chat-right-member">
+                <AvatarChip name={name} size={30} color={colorFor(name)} />
+                <span className="chat-right-member-name">{name}</span>
+                <span className="chat-right-member-dot" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="chat-right-section">
+          <p className="chat-right-section-title">Shared Files</p>
+          <div className="chat-right-files">
+            {['Q2-Report.pdf','Design-v3.fig','Sprint-24.xlsx'].map(f => (
+              <div key={f} className="chat-right-file">
+                <div className="chat-right-file-icon">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                </div>
+                <span className="chat-right-file-name">{f}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </aside>
+        </>
+      ) : (
+        <div className="chat-main chat-empty">Select a conversation to start chatting</div>
+      )}
+    </div>
+  );
+};
+
+export default ChatPage;

@@ -15,6 +15,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Users,
+  MessageSquare,
 } from 'lucide-react';
 import { IoFolderOutline } from 'react-icons/io5';
 import { LuKanban } from 'react-icons/lu';
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { id: 'projects', icon: IoFolderOutline, path: '/projects', label: 'My Projects' },
   { id: 'tasks',    icon: LuKanban,        path: '/tasks',    label: 'Tasks' },
   { id: 'teams',    icon: Users,           path: '/teams',    label: 'Teams' },
+  { id: 'chat',     icon: MessageSquare,   path: '/chat',     label: 'Chat' },
 ];
 
 const MESSAGES = [

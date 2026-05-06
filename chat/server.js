@@ -95,7 +95,7 @@ io.on('connection', (socket) => {
         if (typeof payload === 'string') {
             room = payload;
         } else if (payload.type === 'dm') {
-            const ids = [String(payload.targetUserId), String(currentUserId || '')].sort();
+            const ids = [String(payload.targetUserId), String(currentUserId || payload.senderId || '')].sort();
             room = `dm_${ids[0]}_${ids[1]}`;
         } else if (payload.type === 'group') {
             room = `group_${payload.roomId}`;
@@ -109,8 +109,8 @@ io.on('connection', (socket) => {
         console.log(`[room] ${socket.id} joined: ${room}`);
     });
 
-    socket.on('sendDM', async ({ receiverId, message }) => {
-        const senderId = currentUserId;
+    socket.on('sendDM', async ({ receiverId, message, senderId: payloadSenderId }) => {
+        const senderId = currentUserId || payloadSenderId;
         if (!senderId) { socket.emit('error', { message: 'Not identified — call userOnline first' }); return; }
 
         const ids  = [String(senderId), String(receiverId)].sort();
@@ -164,8 +164,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('sendGroupMessage', async ({ roomId, roomType = 'group', message }) => {
-        const senderId = currentUserId;
+    socket.on('sendGroupMessage', async ({ roomId, roomType = 'group', message, senderId: payloadSenderId }) => {
+        const senderId = currentUserId || payloadSenderId;
         if (!senderId) { socket.emit('error', { message: 'Not identified — call userOnline first' }); return; }
         if (!roomId)   { socket.emit('error', { message: 'roomId is required' }); return; }
 
