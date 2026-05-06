@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Plus, Search, LayoutGrid, List, RefreshCw, Users,
-  X, Send, Crown, UserPlus, CheckCircle, AlertCircle,
-  Mail, Loader2, Shield, UserMinus, LogOut, ChevronRight,
+  Plus, Search, Users, Send, Crown, UserPlus,
+  CheckCircle, AlertCircle, Mail, Loader2, Shield,
+  Trash2, LogOut, ChevronDown, ChevronsUpDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { teamsApi, type Team, type TeamMember } from '../teamsApi';
@@ -12,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-function initials(s: string) { return s.slice(0, 2).toUpperCase(); }
+function initials(s: string) { return (s || '??').slice(0, 2).toUpperCase(); }
 
 const PALETTE = [
   '#6366F1', '#8B5CF6', '#EC4899', '#10B981',
@@ -25,17 +25,14 @@ function teamColor(id: string) {
 }
 
 
-interface CreateModalProps {
-  userId: string;
-  onClose: () => void;
-  onCreate: (t: Team) => void;
-}
-
-const CreateModal: React.FC<CreateModalProps> = ({ userId, onClose, onCreate }) => {
+const CreateModal: React.FC<{ userId: string; onClose: () => void; onCreate: (t: Team) => void }> = ({
+  userId, onClose, onCreate,
+}) => {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) { setError('Team name is required.'); return; }
@@ -45,58 +42,27 @@ const CreateModal: React.FC<CreateModalProps> = ({ userId, onClose, onCreate }) 
       onCreate(t);
     } catch {
       setError('Failed to create team. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
   return (
-    <motion.div
-      className="projects-modal-overlay"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <motion.div
-        className="projects-modal"
-        initial={{ opacity: 0, y: 24, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 24, scale: 0.97 }}
-        transition={{ duration: 0.22 }}
-        onClick={e => e.stopPropagation()}
-      >
+    <motion.div className="projects-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="projects-modal" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.97 }} transition={{ duration: 0.22 }} onClick={e => e.stopPropagation()}>
         <h2 className="projects-modal-title">New Team</h2>
         <p className="projects-modal-sub">Create a reusable group of collaborators.</p>
-
         <form onSubmit={handleSubmit} className="projects-modal-form">
           <div className="projects-field">
             <label className="projects-label">Team name *</label>
-            <input
-              className="projects-input"
-              type="text"
-              placeholder="e.g. UI/UX Design Team"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              autoFocus
-            />
+            <input className="projects-input" type="text" placeholder="e.g. UI/UX Design Team" value={name} onChange={e => setName(e.target.value)} autoFocus />
           </div>
           <div className="projects-field">
             <label className="projects-label">Description</label>
-            <textarea
-              className="projects-input projects-textarea"
-              placeholder="What does this team work on?"
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              rows={3}
-            />
+            <textarea className="projects-input projects-textarea" placeholder="What does this team work on?" value={desc} onChange={e => setDesc(e.target.value)} rows={3} />
           </div>
           {error && <p className="projects-error">{error}</p>}
           <div className="projects-modal-actions">
             <button type="button" className="projects-btn-ghost" onClick={onClose}>Cancel</button>
-            <button type="submit" className="projects-btn-primary" disabled={loading}>
-              {loading ? 'Creating…' : 'Create Team'}
-            </button>
+            <button type="submit" className="projects-btn-primary" disabled={loading}>{loading ? 'Creating…' : 'Create Team'}</button>
           </div>
         </form>
       </motion.div>
@@ -105,19 +71,15 @@ const CreateModal: React.FC<CreateModalProps> = ({ userId, onClose, onCreate }) 
 };
 
 
-interface InviteModalProps {
-  team: Team;
-  onClose: () => void;
-  onInvited: () => void;
-}
-
-const InviteModal: React.FC<InviteModalProps> = ({ team, onClose, onInvited }) => {
-  const [email, setEmail]   = useState('');
-  const [role, setRole]     = useState<'MEMBER' | 'ADMIN'>('MEMBER');
+const InviteModal: React.FC<{ team: Team; onClose: () => void; onInvited: () => void }> = ({
+  team, onClose, onInvited,
+}) => {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'MEMBER' | 'ADMIN'>('MEMBER');
   const [loading, setLoading] = useState(false);
-  const [done, setDone]     = useState<'added' | 'sent' | null>(null);
+  const [done, setDone] = useState<'added' | 'sent' | null>(null);
   const [message, setMessage] = useState('');
-  const [error, setError]   = useState('');
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -127,94 +89,51 @@ const InviteModal: React.FC<InviteModalProps> = ({ team, onClose, onInvited }) =
     try {
       const res = await teamsApi.invite(team.id, { email: trimmed, role }) as Record<string, unknown>;
       if ((res as { id?: string })?.id) {
-        setDone('added');
-        setMessage(`${trimmed} has been added to "${team.name}".`);
-        onInvited();
+        setDone('added'); setMessage(`${trimmed} added to "${team.name}".`); onInvited();
       } else {
-        setDone('sent');
-        setMessage(`No account found. A registration invite was sent to ${trimmed}.`);
+        setDone('sent'); setMessage(`Invite sent to ${trimmed}.`);
       }
     } catch (err: unknown) {
-      setError(
-        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-        ?? 'Something went wrong.'
-      );
-    } finally {
-      setLoading(false);
-    }
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Something went wrong.');
+    } finally { setLoading(false); }
   };
 
   return (
-    <motion.div
-      className="projects-modal-overlay"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-    >
-      <motion.div
-        className="projects-modal"
-        initial={{ opacity: 0, y: 24, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 24, scale: 0.97 }}
-        transition={{ duration: 0.22 }}
-        onClick={e => e.stopPropagation()}
-      >
-        <h2 className="projects-modal-title">Invite to Team</h2>
-        <p className="projects-modal-sub">Add a member to <strong>{team.name}</strong></p>
+    <motion.div className="projects-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="projects-modal" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.97 }} transition={{ duration: 0.22 }} onClick={e => e.stopPropagation()}>
+        <h2 className="projects-modal-title">Invite Member</h2>
+        <p className="projects-modal-sub">Add someone to <strong>{team.name}</strong></p>
 
         <AnimatePresence mode="wait">
           {done ? (
-            <motion.div key="done" className="teams-invite-result"
-              initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <motion.div key="done" className="teams-invite-result" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
               <div className={`teams-result-icon ${done === 'sent' ? 'teams-result-icon--sent' : ''}`}>
                 {done === 'sent' ? <Mail size={26} /> : <CheckCircle size={26} />}
               </div>
               <p className="teams-result-title">{done === 'sent' ? 'Invite Sent!' : 'Member Added!'}</p>
               <p className="teams-result-msg">{message}</p>
-              <div className="projects-modal-actions" style={{ justifyContent: 'center' }}>
-                {done === 'added' && (
-                  <button className="projects-btn-ghost" onClick={() => { setEmail(''); setDone(null); }}>
-                    Invite Another
-                  </button>
-                )}
+              <div className="projects-modal-actions" style={{ justifyContent: 'center', marginTop: 8 }}>
+                {done === 'added' && <button className="projects-btn-ghost" onClick={() => { setEmail(''); setDone(null); }}>Invite Another</button>}
                 <button className="projects-btn-primary" onClick={onClose}>Done</button>
               </div>
             </motion.div>
           ) : (
-            <motion.form key="form" className="projects-modal-form" onSubmit={handleSubmit}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <motion.form key="form" className="projects-modal-form" onSubmit={handleSubmit} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <div className="projects-field">
                 <label className="projects-label">Email address</label>
-                <input
-                  type="email"
-                  className="projects-input"
-                  placeholder="colleague@company.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  disabled={loading}
-                  autoFocus
-                  required
-                />
+                <input type="email" className="projects-input" placeholder="colleague@company.com" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} autoFocus required />
               </div>
               <div className="projects-field">
                 <label className="projects-label">Role</label>
                 <div className="teams-role-row">
                   {(['MEMBER', 'ADMIN'] as const).map(r => (
-                    <button key={r} type="button"
-                      className={`teams-role-chip ${role === r ? 'teams-role-chip--active' : ''}`}
-                      onClick={() => setRole(r)}>
-                      {r === 'ADMIN' ? <Crown size={12} /> : <Users size={12} />}
-                      {r}
+                    <button key={r} type="button" className={`teams-role-chip ${role === r ? 'teams-role-chip--active' : ''}`} onClick={() => setRole(r)}>
+                      {r === 'ADMIN' ? <Crown size={12} /> : <Users size={12} />}{r}
                     </button>
                   ))}
                 </div>
               </div>
-              {error && (
-                <div className="teams-error-row">
-                  <AlertCircle size={13} /><span>{error}</span>
-                </div>
-              )}
+              {error && <div className="teams-error-row"><AlertCircle size={13} /><span>{error}</span></div>}
               <div className="projects-modal-actions">
                 <button type="button" className="projects-btn-ghost" onClick={onClose}>Cancel</button>
                 <button type="submit" className="projects-btn-primary" disabled={loading || !email.trim()}>
@@ -230,412 +149,337 @@ const InviteModal: React.FC<InviteModalProps> = ({ team, onClose, onInvited }) =
 };
 
 
-interface TeamCardProps {
-  team: Team;
-  isOwner: boolean;
-  onClick: () => void;
-}
-
-const TeamCard: React.FC<TeamCardProps> = ({ team, isOwner, onClick }) => {
-  const color = teamColor(team.id);
-  return (
-    <motion.button
-      className="teams-card"
-      onClick={onClick}
-      whileHover={{ y: -3, scale: 1.01 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-    >
-      <div className="teams-card-top" style={{ background: `${color}18`, borderBottom: `1px solid ${color}28` }}>
-        <div className="teams-card-av" style={{ background: `linear-gradient(135deg, ${color}, ${color}cc)` }}>
-          {initials(team.name)}
-        </div>
-        {isOwner && (
-          <span className="teams-card-owner-badge">
-            <Shield size={10} /> Owner
-          </span>
-        )}
-      </div>
-      <div className="teams-card-body">
-        <p className="teams-card-name">{team.name}</p>
-        {team.description && <p className="teams-card-desc">{team.description}</p>}
-        <div className="teams-card-meta">
-          <span><Users size={11} /> {team.memberCount} member{team.memberCount !== 1 ? 's' : ''}</span>
-          <span>{fmtDate(team.createdAt)}</span>
-        </div>
-      </div>
-      <div className="teams-card-arrow"><ChevronRight size={14} /></div>
-    </motion.button>
-  );
+const roleBadgeClass: Record<string, string> = {
+  OWNER: 'tm-tbl-badge--owner',
+  ADMIN: 'tm-tbl-badge--admin',
+  MEMBER: 'tm-tbl-badge--member',
 };
 
+const MemberTable: React.FC<{
+  members: TeamMember[];
+  isOwner: boolean;
+  kicking: string | null;
+  onKick: (m: TeamMember) => void;
+}> = ({ members, isOwner, kicking, onKick }) => {
+  const [search, setSearch] = useState('');
+  const [sortCol, setSortCol] = useState<'name' | 'role' | 'joinedAt'>('joinedAt');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
-interface DrawerProps {
-  team: Team;
-  currentUserId: string;
-  onClose: () => void;
-  onRefresh: () => void;
-  onDelete: (id: string) => void;
-  onQuit: (id: string) => void;
-}
-
-const TeamDrawer: React.FC<DrawerProps> = ({
-  team, currentUserId, onClose, onRefresh, onDelete, onQuit,
-}) => {
-  const [members, setMembers]   = useState<TeamMember[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [kicking, setKicking]   = useState<string | null>(null);
-  const isOwner = team.ownerId === currentUserId;
-  const color = teamColor(team.id);
-
-  const fetchMembers = async () => {
-    setLoading(true);
-    try { setMembers(await teamsApi.getMembers(team.id)); }
-    catch { /* ignore */ }
-    finally { setLoading(false); }
+  const toggleSort = (col: typeof sortCol) => {
+    if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortCol(col); setSortDir('asc'); }
   };
 
-  useEffect(() => { fetchMembers(); }, [team.id]);
+  const visible = [...members]
+    .filter(m => {
+      const q = search.toLowerCase();
+      return !q || (m.username || '').toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q);
+    })
+    .sort((a, b) => {
+      let av = '', bv = '';
+      if (sortCol === 'name') { av = a.username || a.email || ''; bv = b.username || b.email || ''; }
+      else if (sortCol === 'role') { av = a.role; bv = b.role; }
+      else { av = a.joinedAt; bv = b.joinedAt; }
+      return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    });
 
-  const handleKick = async (userId: string, name: string) => {
-    if (!confirm(`Remove ${name} from the team?`)) return;
-    setKicking(userId);
-    try {
-      await teamsApi.kick(team.id, userId);
-      setMembers(prev => prev.filter(m => m.userId !== userId));
-      onRefresh();
-    } catch { /* ignore */ }
-    finally { setKicking(null); }
-  };
+  const SortIcon = ({ col }: { col: typeof sortCol }) => (
+    <ChevronsUpDown size={13} style={{ opacity: sortCol === col ? 1 : 0.3 }} />
+  );
 
   return (
-    <>
-      <motion.div
-        className="teams-drawer-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-      <motion.aside
-        className="teams-drawer"
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'spring', stiffness: 340, damping: 34 }}
-      >
-        <div className="teams-drawer-head" style={{ borderBottom: `2px solid ${color}40` }}>
-          <div className="teams-drawer-av" style={{ background: `linear-gradient(135deg, ${color}, ${color}bb)` }}>
-            {initials(team.name)}
-          </div>
-          <div className="teams-drawer-title-wrap">
-            <h2 className="teams-drawer-name">{team.name}</h2>
-            {team.description && <p className="teams-drawer-desc">{team.description}</p>}
-          </div>
-          <button className="teams-drawer-close" onClick={onClose}><X size={18} /></button>
+    <div className="tm-tbl-wrap">
+      {/* Table search bar */}
+      <div className="tm-tbl-bar">
+        <div className="projects-search" style={{ maxWidth: 280 }}>
+          <Search size={13} className="projects-search-icon" />
+          <input className="projects-search-input" placeholder="Search members…" value={search} onChange={e => setSearch(e.target.value)} />
         </div>
+        <span className="tm-tbl-count">{visible.length} member{visible.length !== 1 ? 's' : ''}</span>
+      </div>
 
-        <div className="teams-drawer-meta">
-          <span className="projects-status-badge projects-status-badge--active">
-            <Users size={11} /> {team.memberCount} members
-          </span>
-          <span className="teams-drawer-date">Since {fmtDate(team.createdAt)}</span>
-        </div>
-
-        {/* Actions */}
-        <div className="teams-drawer-actions">
-          {isOwner && (
-            <button className="projects-btn-primary teams-drawer-invite" onClick={() => setShowInvite(true)}>
-              <UserPlus size={14} /> Invite Member
-            </button>
-          )}
-          {isOwner ? (
-            <button className="projects-btn-ghost teams-drawer-danger" onClick={() => onDelete(team.id)}>
-              <X size={14} /> Delete Team
-            </button>
-          ) : (
-            <button className="projects-btn-ghost teams-drawer-warn" onClick={() => onQuit(team.id)}>
-              <LogOut size={14} /> Leave Team
-            </button>
-          )}
-        </div>
-
-        <div className="teams-drawer-section">
-          <p className="teams-drawer-section-title">Members</p>
-          {loading ? (
-            <div className="teams-drawer-loading">
-              <Loader2 size={20} className="teams-spin" />
-            </div>
-          ) : members.length === 0 ? (
-            <div className="teams-drawer-empty">
-              <Users size={32} strokeWidth={1} style={{ opacity: 0.2 }} />
-              <p>No members yet</p>
-            </div>
-          ) : (
-            <div className="teams-drawer-members">
-              {members.map(m => {
-                const label = m.username || m.email || m.userId.slice(0, 8);
-                return (
-                  <div key={m.id} className="teams-drawer-member">
-                    <div className="teams-drawer-member-av" style={{ background: teamColor(m.userId) }}>
-                      {m.avatar
-                        ? <img src={m.avatar} alt="" />
-                        : initials(label)
-                      }
+      <div className="tm-tbl-scroll">
+        <table className="tm-tbl">
+          <thead>
+            <tr>
+              <th className="tm-tbl-th tm-tbl-th--name" onClick={() => toggleSort('name')}>
+                Full Name <SortIcon col="name" />
+              </th>
+              <th className="tm-tbl-th" onClick={() => toggleSort('role')}>
+                Role <SortIcon col="role" />
+              </th>
+              <th className="tm-tbl-th" onClick={() => toggleSort('joinedAt')}>
+                Join Date <SortIcon col="joinedAt" />
+              </th>
+              <th className="tm-tbl-th">Email</th>
+              {isOwner && <th className="tm-tbl-th" />}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.length === 0 ? (
+              <tr>
+                <td colSpan={isOwner ? 5 : 4} className="tm-tbl-empty">
+                  <Users size={28} strokeWidth={1} style={{ opacity: 0.2 }} />
+                  <p>{search ? 'No members match your search.' : 'No members yet.'}</p>
+                </td>
+              </tr>
+            ) : visible.map((m, i) => {
+              const label = m.username || m.email || m.userId.slice(0, 8);
+              const color = teamColor(m.userId);
+              return (
+                <motion.tr
+                  key={m.id}
+                  className="tm-tbl-row"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.03 }}
+                >
+                  {/* Name + avatar */}
+                  <td className="tm-tbl-td tm-tbl-td--name">
+                    <div className="tm-tbl-user">
+                      <div className="tm-tbl-av" style={{ background: color }}>
+                        {m.avatar ? <img src={m.avatar} alt="" /> : initials(label)}
+                      </div>
+                      <div className="tm-tbl-user-info">
+                        <span className="tm-tbl-user-name">{m.username || m.userId.slice(0, 8)}</span>
+                        {m.email && <span className="tm-tbl-user-handle">@{m.email.split('@')[0]}</span>}
+                      </div>
                     </div>
-                    <div className="teams-drawer-member-info">
-                      <span className="teams-drawer-member-name">{label}</span>
-                      {m.email && m.username && (
-                        <span className="teams-drawer-member-email">{m.email}</span>
-                      )}
-                    </div>
-                    <span className={`teams-member-badge teams-member-badge--${m.role.toLowerCase()}`}>
+                  </td>
+
+                  {/* Role */}
+                  <td className="tm-tbl-td">
+                    <span className={`tm-tbl-badge ${roleBadgeClass[m.role] ?? ''}`}>
                       {m.role === 'OWNER' && <Shield size={10} />}
                       {m.role === 'ADMIN' && <Crown size={10} />}
                       {m.role}
                     </span>
-                    {isOwner && m.role !== 'OWNER' && (
-                      <button
-                        className="teams-drawer-kick"
-                        title="Remove"
-                        disabled={kicking === m.userId}
-                        onClick={() => handleKick(m.userId, label)}
-                      >
-                        {kicking === m.userId
-                          ? <Loader2 size={12} className="teams-spin" />
-                          : <UserMinus size={12} />}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  </td>
 
-        <AnimatePresence>
-          {showInvite && (
-            <InviteModal
-              team={team}
-              onClose={() => setShowInvite(false)}
-              onInvited={() => { fetchMembers(); onRefresh(); setShowInvite(false); }}
-            />
-          )}
-        </AnimatePresence>
-      </motion.aside>
-    </>
+                  {/* Join date */}
+                  <td className="tm-tbl-td tm-tbl-td--date">{fmtDate(m.joinedAt)}</td>
+
+                  {/* Email */}
+                  <td className="tm-tbl-td tm-tbl-td--email">{m.email || '—'}</td>
+
+                  {/* Kick */}
+                  {isOwner && (
+                    <td className="tm-tbl-td tm-tbl-td--action">
+                      {m.role !== 'OWNER' && (
+                        <button
+                          className="tm-tbl-kick"
+                          title="Remove member"
+                          disabled={kicking === m.userId}
+                          onClick={() => onKick(m)}
+                        >
+                          {kicking === m.userId
+                            ? <Loader2 size={14} className="teams-spin" />
+                            : <Trash2 size={14} />}
+                        </button>
+                      )}
+                    </td>
+                  )}
+                </motion.tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 };
 
 
 const TeamsPage: React.FC = () => {
   const { user } = useAuth();
-  const [teams, setTeams]       = useState<Team[]>([]);
-  const [filtered, setFiltered] = useState<Team[]>([]);
-  const [loading, setLoading]   = useState(true);
-  const [error, setError]       = useState('');
-  const [search, setSearch]     = useState('');
-  const [view, setView]         = useState<'grid' | 'list'>('grid');
+  const currentUserId = user?.id ?? '';
+
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [activeTeam, setActiveTeam] = useState<Team | null>(null);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loadingTeams, setLoadingTeams] = useState(true);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [kicking, setKicking] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [selected, setSelected] = useState<Team | null>(null);
+  const [showInvite, setShowInvite] = useState(false);
+  const [teamDropOpen, setTeamDropOpen] = useState(false);
+
+  const isOwner = !!activeTeam && !!currentUserId && activeTeam.ownerId === currentUserId;
 
   const fetchTeams = async () => {
-    if (!user?.id) return;
-    setLoading(true); setError('');
+    if (!currentUserId) return;
+    setLoadingTeams(true);
     try {
-      const data = await teamsApi.list(user.id);
+      const data = await teamsApi.list(currentUserId);
       setTeams(data);
-      setFiltered(data);
-    } catch {
-      setError('Could not load teams. Check your connection.');
-    } finally {
-      setLoading(false);
-    }
+      if (data.length > 0 && !activeTeam) setActiveTeam(data[0]);
+    } catch {}
+    finally { setLoadingTeams(false); }
   };
 
-  useEffect(() => { fetchTeams(); }, [user?.id]);
+  const fetchMembers = async (team: Team) => {
+    setLoadingMembers(true);
+    try { setMembers(await teamsApi.getMembers(team.id)); }
+    catch { setMembers([]); }
+    finally { setLoadingMembers(false); }
+  };
 
-  useEffect(() => {
-    const q = search.toLowerCase();
-    setFiltered(q
-      ? teams.filter(t =>
-          t.name.toLowerCase().includes(q) ||
-          t.description.toLowerCase().includes(q)
-        )
-      : teams
-    );
-  }, [search, teams]);
+  useEffect(() => { fetchTeams(); }, [currentUserId]);
+  useEffect(() => { if (activeTeam) fetchMembers(activeTeam); }, [activeTeam?.id]);
 
   const handleCreated = (t: Team) => {
     setTeams(prev => [t, ...prev]);
+    setActiveTeam(t);
     setShowCreate(false);
-    setSelected(t);
   };
 
-  const handleDelete = async (teamId: string) => {
-    if (!confirm('Delete this team? This cannot be undone.')) return;
+  const handleDelete = async () => {
+    if (!activeTeam || !confirm(`Delete "${activeTeam.name}"? This cannot be undone.`)) return;
     try {
-      await teamsApi.delete(teamId);
-      const remaining = teams.filter(t => t.id !== teamId);
+      await teamsApi.delete(activeTeam.id);
+      const remaining = teams.filter(t => t.id !== activeTeam.id);
       setTeams(remaining);
-      setSelected(null);
+      setActiveTeam(remaining[0] ?? null);
+      setMembers([]);
     } catch { alert('Could not delete team.'); }
   };
 
-  const handleQuit = async (teamId: string) => {
-    if (!confirm('Leave this team?')) return;
+  const handleQuit = async () => {
+    if (!activeTeam || !confirm(`Leave "${activeTeam.name}"?`)) return;
     try {
-      await teamsApi.quit(teamId);
-      setTeams(prev => prev.filter(t => t.id !== teamId));
-      setSelected(null);
+      await teamsApi.quit(activeTeam.id);
+      const remaining = teams.filter(t => t.id !== activeTeam.id);
+      setTeams(remaining);
+      setActiveTeam(remaining[0] ?? null);
+      setMembers([]);
     } catch { alert('Could not leave team.'); }
   };
 
-  const renderContent = () => {
-    if (loading) return (
-      <div className="projects-state">
-        <div className="projects-spinner" />
-        <p>Loading teams…</p>
-      </div>
-    );
-
-    if (error) return (
-      <div className="projects-state projects-state--error">
-        <Users size={40} strokeWidth={1.2} />
-        <p>{error}</p>
-        <button className="projects-btn-primary" onClick={fetchTeams}>
-          <RefreshCw size={14} /> Try again
-        </button>
-      </div>
-    );
-
-    if (filtered.length === 0) return (
-      <div className="projects-state">
-        <Users size={48} strokeWidth={1} style={{ opacity: 0.25 }} />
-        <p style={{ color: 'var(--text-3)' }}>
-          {search ? 'No teams match your search.' : 'No teams yet. Create your first one!'}
-        </p>
-        {!search && (
-          <button className="projects-btn-primary" onClick={() => setShowCreate(true)}>
-            <Plus size={14} /> New Team
-          </button>
-        )}
-      </div>
-    );
-
-    if (view === 'grid') return (
-      <motion.div
-        className="flex justify-start items-start gap-6 flex-wrap p-2"
-        initial="hidden"
-        animate="visible"
-        variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
-      >
-        {filtered.map(t => (
-          <motion.div
-            key={t.id}
-            variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
-          >
-            <TeamCard
-              team={t}
-              isOwner={t.ownerId === user?.id}
-              onClick={() => setSelected(t)}
-            />
-          </motion.div>
-        ))}
-      </motion.div>
-    );
-
-    return (
-      <div className="projects-list">
-        {filtered.map((t, i) => (
-          <motion.button
-            key={t.id}
-            className="projects-list-row"
-            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}
-            initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.04 }}
-            onClick={() => setSelected(t)}
-          >
-            <div className="projects-list-icon" style={{ color: teamColor(t.id) }}>
-              <Users size={18} strokeWidth={1.8} />
-            </div>
-            <div className="projects-list-info">
-              <span className="projects-list-name">{t.name}</span>
-              {t.description && <span className="projects-list-desc">{t.description}</span>}
-            </div>
-            <span className="projects-status-badge projects-status-badge--active">
-              <Users size={10} /> {t.memberCount}
-            </span>
-            <span className="projects-list-date">{fmtDate(t.createdAt)}</span>
-          </motion.button>
-        ))}
-      </div>
-    );
+  const handleKick = async (m: TeamMember) => {
+    if (!activeTeam) return;
+    const name = m.username || m.email || m.userId.slice(0, 8);
+    if (!confirm(`Remove ${name} from the team?`)) return;
+    setKicking(m.userId);
+    try {
+      await teamsApi.kick(activeTeam.id, m.userId);
+      setMembers(prev => prev.filter(x => x.userId !== m.userId));
+      setActiveTeam(t => t ? { ...t, memberCount: t.memberCount - 1 } : t);
+      setTeams(prev => prev.map(t => t.id === activeTeam.id ? { ...t, memberCount: t.memberCount - 1 } : t));
+    } catch { alert('Could not remove member.'); }
+    finally { setKicking(null); }
   };
+
+  const color = activeTeam ? teamColor(activeTeam.id) : '#6366F1';
+
+
+  if (loadingTeams) return (
+    <div className="projects-page">
+      <div className="projects-state"><div className="projects-spinner" /><p>Loading teams…</p></div>
+    </div>
+  );
 
   return (
     <div className="projects-page">
+
       <div className="projects-header">
         <div>
           <h1 className="projects-title">My Teams</h1>
           <p className="projects-subtitle">
-            {teams.length} team{teams.length !== 1 ? 's' : ''} · click a team to manage members
+            {activeTeam
+              ? <><span style={{ color, fontWeight: 700 }}>{activeTeam.name}</span> · {activeTeam.memberCount} member{activeTeam.memberCount !== 1 ? 's' : ''}</>
+              : `${teams.length} team${teams.length !== 1 ? 's' : ''}`
+            }
           </p>
         </div>
-        <button className="projects-btn-primary" onClick={() => setShowCreate(true)}>
-          <Plus size={15} strokeWidth={2.5} />
-          New Team
-        </button>
+
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {teams.length > 0 && (
+            <div className="tm-team-switcher" style={{ position: 'relative' }}>
+              <button
+                className="projects-btn-ghost tm-switcher-btn"
+                onClick={() => setTeamDropOpen(o => !o)}
+              >
+                <div className="tm-switcher-dot" style={{ background: color }} />
+                <span>{activeTeam?.name ?? 'Select team'}</span>
+                <ChevronDown size={14} style={{ marginLeft: 4, opacity: 0.6 }} />
+              </button>
+              <AnimatePresence>
+                {teamDropOpen && (
+                  <motion.div
+                    className="tm-switcher-drop"
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.14 }}
+                  >
+                    {teams.map(t => (
+                      <button
+                        key={t.id}
+                        className={`tm-switcher-opt ${activeTeam?.id === t.id ? 'tm-switcher-opt--active' : ''}`}
+                        onClick={() => { setActiveTeam(t); setTeamDropOpen(false); }}
+                      >
+                        <div className="tm-switcher-dot" style={{ background: teamColor(t.id) }} />
+                        <span>{t.name}</span>
+                        {t.ownerId === currentUserId && <Shield size={11} style={{ marginLeft: 'auto', color: '#818CF8', opacity: 0.7 }} />}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {activeTeam && isOwner && (
+            <button className="projects-btn-primary" onClick={() => setShowInvite(true)}>
+              <UserPlus size={15} /> Invite Member
+            </button>
+          )}
+          {activeTeam && isOwner && (
+            <button className="projects-btn-ghost tm-danger-btn" onClick={handleDelete} title="Delete team">
+              <Trash2 size={14} />
+            </button>
+          )}
+          {activeTeam && !isOwner && (
+            <button className="projects-btn-ghost tm-warn-btn" onClick={handleQuit} title="Leave team">
+              <LogOut size={14} />
+            </button>
+          )}
+
+          <button className="projects-btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={15} strokeWidth={2.5} /> New Team
+          </button>
+        </div>
       </div>
 
-      <div className="projects-toolbar">
-        <div className="projects-search">
-          <Search size={14} className="projects-search-icon" strokeWidth={2} />
-          <input
-            type="text"
-            placeholder="Search teams…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="projects-search-input"
-          />
-        </div>
-        <div className="projects-view-toggle">
-          <button
-            className={`projects-view-btn ${view === 'grid' ? 'projects-view-btn--active' : ''}`}
-            onClick={() => setView('grid')} title="Grid view"
-          >
-            <LayoutGrid size={16} />
-          </button>
-          <button
-            className={`projects-view-btn ${view === 'list' ? 'projects-view-btn--active' : ''}`}
-            onClick={() => setView('list')} title="List view"
-          >
-            <List size={16} />
+      {!activeTeam ? (
+        <div className="projects-state">
+          <Users size={48} strokeWidth={1} style={{ opacity: 0.25 }} />
+          <p style={{ color: 'var(--text-3)' }}>No teams yet. Create your first one!</p>
+          <button className="projects-btn-primary" onClick={() => setShowCreate(true)}>
+            <Plus size={14} /> New Team
           </button>
         </div>
-      </div>
+      ) : loadingMembers ? (
+        <div className="projects-state"><div className="projects-spinner" /><p>Loading members…</p></div>
+      ) : (
+        <MemberTable
+          members={members}
+          isOwner={isOwner}
+          kicking={kicking}
+          onKick={handleKick}
+        />
+      )}
 
-      {renderContent()}
-
+      {/* ── Modals ────────────────────────────────────────────── */}
       <AnimatePresence>
         {showCreate && (
-          <CreateModal
-            userId={user?.id ?? ''}
-            onClose={() => setShowCreate(false)}
-            onCreate={handleCreated}
-          />
+          <CreateModal userId={currentUserId} onClose={() => setShowCreate(false)} onCreate={handleCreated} />
         )}
-        {selected && (
-          <TeamDrawer
-            key={selected.id}
-            team={selected}
-            currentUserId={user?.id ?? ''}
-            onClose={() => setSelected(null)}
-            onRefresh={fetchTeams}
-            onDelete={id => { handleDelete(id); }}
-            onQuit={id => { handleQuit(id); }}
+        {showInvite && activeTeam && (
+          <InviteModal
+            team={activeTeam}
+            onClose={() => setShowInvite(false)}
+            onInvited={() => { fetchMembers(activeTeam); fetchTeams(); }}
           />
         )}
       </AnimatePresence>
