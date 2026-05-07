@@ -32,6 +32,7 @@ console.log('   INTERNAL_API_KEY :', INTERNAL_API_KEY ? '✅ set' : '⚠️  mis
 const internalHeaders = {
     'Content-Type': 'application/json',
     'X-Internal-Key': INTERNAL_API_KEY,
+    'Host': 'localhost',
 };
 
 const resolveUrl = (template, params = {}) =>
