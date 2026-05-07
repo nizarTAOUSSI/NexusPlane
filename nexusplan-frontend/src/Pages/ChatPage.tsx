@@ -3,6 +3,7 @@ import { io, Socket } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
 import { teamsApi } from '../teamsApi';
 import type { TeamMember } from '../teamsApi';
+import api from '../api';
 
 interface ChatRoom {
   id: string;
@@ -166,17 +167,27 @@ const ChatPage: React.FC = () => {
   }, [user?.id, token]);
 
   useEffect(() => {
-    if (!activeRoom) return;
+    if (!activeRoom || !user?.id) return;
     setMessages([]);
     setTyping(null);
     const sock = socketRef.current;
-    if (!sock) return;
-    sock.emit('joinRoom', { 
-      type: activeRoom.type, 
-      roomId: activeRoom.id, 
-      targetUserId: activeRoom.id,
-      senderId: user?.id
-    });
+    if (sock) {
+      sock.emit('joinRoom', {
+        type: activeRoom.type,
+        roomId: activeRoom.id,
+        targetUserId: activeRoom.id,
+        senderId: user?.id
+      });
+    }
+
+    // Fetch message history
+    const endpoint = activeRoom.type === 'group'
+      ? `messages/group/${activeRoom.id}/history/`
+      : `messages/direct/${activeRoom.id}/history/`;
+
+    api.get(endpoint).then(res => {
+      setMessages(res.data);
+    }).catch(() => {/* history unavailable, start fresh */});
   }, [activeRoom?.id, user?.id]);
 
   useEffect(() => {

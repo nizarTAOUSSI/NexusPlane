@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
+from django.db.models import Q
 from .models import User, DirectMessage, GroupMessage, Notification
 
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
@@ -101,3 +102,38 @@ def store_notification(request):
         "created_at": notif.created_at.isoformat(),
         "from_user_info": from_user_info
     })
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def dm_history(request, other_user_id):
+    other_user = get_object_or_404(User, id=other_user_id)
+    messages = DirectMessage.objects.filter(
+        Q(sender=request.user, receiver=other_user) |
+        Q(sender=other_user, receiver=request.user)
+    ).order_by("created_at")[:100]
+
+    return Response([{
+        "id": str(m.id),
+        "senderId": str(m.sender_id),
+        "senderName": m.sender.username,
+        "message": m.message,
+        "timestamp": m.created_at.isoformat(),
+        "type": "dm",
+    } for m in messages])
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def group_history(request, room_id):
+    messages = GroupMessage.objects.filter(room_id=room_id).order_by("created_at")[:100]
+
+    return Response([{
+        "id": str(m.id),
+        "senderId": str(m.sender_id),
+        "senderName": m.sender.username,
+        "message": m.message,
+        "timestamp": m.created_at.isoformat(),
+        "type": "group",
+        "roomId": m.room_id,
+    } for m in messages])
