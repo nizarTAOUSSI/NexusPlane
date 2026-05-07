@@ -65,7 +65,9 @@ services:
   auth_service:
     build:
       context: ./auth_service
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "python manage.py migrate --fake-initial &&
+             python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./auth_service:/app
     env_file:

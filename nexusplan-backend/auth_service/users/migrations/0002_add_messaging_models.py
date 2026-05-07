@@ -1,0 +1,60 @@
+import uuid
+import django.db.models.deletion
+from django.conf import settings
+from django.db import migrations, models
+
+
+class Migration(migrations.Migration):
+
+    dependencies = [
+        ('users', '0001_initial'),
+    ]
+
+    operations = [
+        migrations.CreateModel(
+            name='DirectMessage',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('message', models.TextField()),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('is_read', models.BooleanField(default=False)),
+                ('receiver', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='received_dms', to=settings.AUTH_USER_MODEL)),
+                ('sender', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='sent_dms', to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'db_table': 'direct_messages',
+                'ordering': ['created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='GroupMessage',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('room_id', models.CharField(max_length=100)),
+                ('room_type', models.CharField(default='group', max_length=50)),
+                ('message', models.TextField()),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('sender', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='group_messages', to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'db_table': 'group_messages',
+                'ordering': ['created_at'],
+            },
+        ),
+        migrations.CreateModel(
+            name='Notification',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('type', models.CharField(max_length=50)),
+                ('data', models.JSONField(default=dict)),
+                ('is_read', models.BooleanField(default=False)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('from_user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='sent_notifications', to=settings.AUTH_USER_MODEL)),
+                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='notifications', to=settings.AUTH_USER_MODEL)),
+            ],
+            options={
+                'db_table': 'notifications',
+                'ordering': ['-created_at'],
+            },
+        ),
+    ]
