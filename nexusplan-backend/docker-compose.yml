@@ -66,9 +66,10 @@ services:
     build:
       context: ./auth_service
     command: >
-      sh -c "until python manage.py migrate --fake-initial; do
+      sh -c "until python manage.py migrate users 0002_add_messaging_models --fake 2>/dev/null; do
                echo '[auth] DB not ready, retrying in 3s...'; sleep 3;
              done &&
+             python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./auth_service:/app
