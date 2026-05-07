@@ -171,8 +171,7 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
-    "SCHEMA_PATH_PREFIX": r"^/api/auth",
-    "SERVERS": [{"url": "/auth", "description": "Via API Gateway"}],
+    "SERVERS": [{"url": "https://nexusplane.duckdns.org", "description": "Via API Gateway"}],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
