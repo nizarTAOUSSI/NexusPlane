@@ -27,29 +27,28 @@ const HeroSection = () => {
         }}
       />
 
-      <div className="relative z-10 max-w-350 mx-auto px-8 lg:px-0 py-10 min-h-screen flex items-center">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-10 lg:px-14 py-10 min-h-screen flex items-center">
         <motion.div
-          className="z-20 absolute top-5 left-4 sm:top-8 sm:left-6 lg:top-18 lg:left-8 flex items-center gap-3"
+          className="z-20 absolute top-5 left-4 sm:top-8 sm:left-6 lg:top-10 lg:left-10 flex items-center gap-2 sm:gap-3"
           whileHover={{ scale: 1.02 }}
         >
-          <img src={logo} alt="NexusPlan Logo" className='w-10 h-10 sm:w-14 sm:h-14 lg:w-20 lg:h-20' />
-          <span className="text-xl sm:text-3xl lg:text-5xl font-bold text-gray-900 tracking-tight">Nexus<span className="text-xl sm:text-3xl lg:text-5xl font-light text-gray-900 tracking-tight">Plan</span></span>
-
+          <img src={logo} alt="NexusPlan Logo" className='w-9 h-9 sm:w-12 sm:h-12 lg:w-16 lg:h-16' />
+          <span className="text-lg sm:text-2xl lg:text-4xl font-bold text-gray-900 tracking-tight">Nexus<span className="text-lg sm:text-2xl lg:text-4xl font-light text-gray-900 tracking-tight">Plan</span></span>
         </motion.div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-4 items-center w-full pt-20 sm:pt-24 lg:pt-0">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-6 lg:gap-8 items-center w-full pt-20 sm:pt-24 md:pt-0">
 
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7, ease: "easeOut" }}
-            className="space-y-6 lg:space-y-8 max-w-xl lg:scale-125 mx-auto lg:mx-0"
+            className="space-y-6 lg:space-y-8 max-w-xl mx-auto md:mx-0"
           >
             <div className="space-y-1">
               <motion.h1
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.15, duration: 0.6 }}
-                className="text-[32px] sm:text-[44px] lg:text-[56px] font-bold text-gray-900 leading-[1.1] tracking-tight"
+                className="text-[28px] sm:text-[40px] md:text-[36px] lg:text-[52px] font-bold text-gray-900 leading-[1.1] tracking-tight"
               >
                 Gérez vos projets à la
               </motion.h1>
@@ -57,7 +56,7 @@ const HeroSection = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25, duration: 0.6 }}
-                className="text-[32px] sm:text-[44px] lg:text-[56px] font-bold text-gray-900 leading-[1.1] tracking-tight"
+                className="text-[28px] sm:text-[40px] md:text-[36px] lg:text-[52px] font-bold text-gray-900 leading-[1.1] tracking-tight"
               >
                 vitesse de la pensée.
               </motion.h1>
@@ -65,7 +64,7 @@ const HeroSection = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.35, duration: 0.6 }}
-                className="text-[32px] sm:text-[44px] lg:text-[56px] font-bold text-gray-900 leading-[1.1] tracking-tight"
+                className="text-[28px] sm:text-[40px] md:text-[36px] lg:text-[52px] font-bold text-gray-900 leading-[1.1] tracking-tight"
               >
                 Ensemble.
               </motion.h1>
@@ -75,7 +74,7 @@ const HeroSection = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.45, duration: 0.6 }}
-              className="text-lg text-gray-600 leading-relaxed max-w-md"
+              className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-md"
             >
               La première plateforme collaborative en temps réel propulsée par l'IA. Planifiez, exécutez et anticipez les risques sans jamais quitter votre espace de travail.
             </motion.p>
@@ -84,13 +83,13 @@ const HeroSection = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.55, duration: 0.6 }}
-              className="flex gap-4 flex-col sm:flex-row"
+              className="flex gap-3 sm:gap-4 flex-col sm:flex-row"
             >
               <motion.button
                 onClick={() => { navigate('/signup'); }}
                 whileHover={{ scale: 1.02, y: -1 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full sm:w-auto px-8 sm:px-10 py-4 cursor-pointer bg-[#0568fa] hover:bg-[#0052d4] text-white text-lg font-medium rounded-2xl shadow-lg shadow-blue-500/20 transition-colors duration-200"
+                className="w-full sm:w-auto px-7 sm:px-9 py-3.5 sm:py-4 cursor-pointer bg-[#0568fa] hover:bg-[#0052d4] text-white text-base sm:text-lg font-medium rounded-2xl shadow-lg shadow-blue-500/20 transition-colors duration-200"
               >
                 Démarrer gratuitement
               </motion.button>
@@ -102,14 +101,21 @@ const HeroSection = () => {
                   borderColor: "#0568fa"
                 }}
                 whileTap={{ scale: 0.97 }}
-                className="w-full sm:w-auto px-10 py-4.5 cursor-pointer bg-white/50 backdrop-blur-md border-2 border-gray-200 text-gray-800 hover:text-[#0568fa] text-lg font-semibold rounded-2xl transition-all duration-300 shadow-sm"
+                className="w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 cursor-pointer bg-white/50 backdrop-blur-md border-2 border-gray-200 text-gray-800 hover:text-[#0568fa] text-base sm:text-lg font-semibold rounded-2xl transition-all duration-300 shadow-sm"
               >
                 Accéder à l'espace
               </motion.button>
             </motion.div>
           </motion.div>
 
-          <Animation />
+          <motion.div
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+            className="w-full flex items-center justify-center lg:ml-10"
+          >
+            <Animation />
+          </motion.div>
         </div>
       </div>
 

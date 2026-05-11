@@ -32,7 +32,7 @@ const Animation = () => {
                     initial={{ opacity: 0, x: 40 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.8, delay: 0.2 }}
-                    className="relative origin-top scale-[0.45] sm:scale-[0.6] lg:scale-125 h-150 lg:h-200"
+                    className="relative lg:-top-16 origin-top scale-[0.45] sm:scale-[0.6] lg:scale-125 h-150 lg:h-200"
                 >
 
                     <motion.div
