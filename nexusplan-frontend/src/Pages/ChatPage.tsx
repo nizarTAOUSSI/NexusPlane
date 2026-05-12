@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import data from '@emoji-mart/data';
+import Picker from '@emoji-mart/react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
@@ -71,8 +73,23 @@ const ChatPage: React.FC = () => {
   const [search, setSearch]         = useState('');
   const [typing, setTyping]         = useState<string | null>(null);
 
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef<HTMLDivElement>(null);
+  const [showPanel, setShowPanel] = useState(true);
+
   const bottomRef   = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showEmojiPicker]);
 
   useEffect(() => {
     if (!roomsLoaded || rooms.length === 0) return;
@@ -91,7 +108,6 @@ const ChatPage: React.FC = () => {
     if (!socket || !user?.id) return;
 
     const onMessage = (data: any) => {
-      // Skip own messages — we add them optimistically in sendMessage
       if (data.senderId === user?.id) return;
 
       const current = activeRoomRef.current;
@@ -120,7 +136,6 @@ const ChatPage: React.FC = () => {
       }
     };
 
-    // Update all sent messages in this room to 'delivered'
     const onDelivered = (_data: any) => {
       setMessages(prev => prev.map(m =>
         m.senderId === user?.id && m.type === 'dm' && (m.status === 'sent' || !m.status)
@@ -129,7 +144,6 @@ const ChatPage: React.FC = () => {
       ));
     };
 
-    // Update all sent messages in this room to 'read'
     const onRead = (data: any) => {
       const current = activeRoomRef.current;
       if (!current || data.roomId !== current.id) return;
@@ -164,7 +178,6 @@ const ChatPage: React.FC = () => {
         targetUserId: activeRoom.id,
         senderId: user?.id
       });
-      // For DMs, notify the other person we've read their messages
       if (activeRoom.type === 'dm') {
         socket.emit('markDMRead', { otherUserId: activeRoom.id });
       }
@@ -255,7 +268,7 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="chat-page">
+    <div className="chat-page rounded-4xl">
       <aside className="chat-sidebar">
         <div className="chat-sidebar-header">
           <div>
@@ -325,12 +338,11 @@ const ChatPage: React.FC = () => {
           </div>
           <div className="chat-topbar-actions">
             <div className={`chat-status-dot${connected ? ' chat-status-dot--on' : ''}`} title={connected ? 'Connected' : 'Disconnected'} />
-            <button className="chat-topbar-btn" title="Search in chat">
-              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-              </svg>
-            </button>
-            <button className="chat-topbar-btn" title="Members">
+            <button
+              className={`chat-topbar-btn${showPanel ? ' chat-topbar-btn--active' : ''}`}
+              title={showPanel ? 'Hide details' : 'Show details'}
+              onClick={() => setShowPanel(v => !v)}
+            >
               <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
@@ -356,7 +368,6 @@ const ChatPage: React.FC = () => {
             const isMe = msg.senderId === user?.id || msg.senderName === 'You';
             const showAvatar = !isMe && (i === 0 || messages[i-1]?.senderId !== msg.senderId);
             
-            // Look up real name
             let displayName = msg.senderName;
             if (!isMe && msg.senderId) {
               const dmRoom = rooms.find(r => r.type === 'dm' && r.id === msg.senderId);
@@ -405,11 +416,6 @@ const ChatPage: React.FC = () => {
         </div>
 
         <div className="chat-input-bar">
-          <button className="chat-input-action" title="Attach file">
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-            </svg>
-          </button>
           <input
             className="chat-input"
             placeholder={`Message ${activeRoom.name}…`}
@@ -417,11 +423,28 @@ const ChatPage: React.FC = () => {
             onChange={onInputChange}
             onKeyDown={onKeyDown}
           />
-          <button className="chat-input-action" title="Emoji">
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-              <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
-            </svg>
-          </button>
+          <div ref={emojiPickerRef} style={{ position: 'relative' }}>
+            {showEmojiPicker && (
+              <div style={{ position: 'absolute', bottom: '48px', right: 0, zIndex: 1000 }}>
+                <Picker
+                  data={data}
+                  onEmojiSelect={(emoji: any) => setInput(prev => prev + emoji.native)}
+                  theme="light"
+                  previewPosition="none"
+                  skinTonePosition="none"
+                />
+              </div>
+            )}
+            <button
+              className="chat-input-action"
+              title="Emoji"
+              onClick={() => setShowEmojiPicker(v => !v)}
+            >
+              <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </button>
+          </div>
           <button
             className="chat-send-btn"
             onClick={sendMessage}
@@ -435,7 +458,7 @@ const ChatPage: React.FC = () => {
         </div>
       </div>
 
-      <aside className="chat-right-panel">
+      {showPanel && <aside className="chat-right-panel">
         <div className="chat-right-header">
           <AvatarChip name={activeRoom.name} size={52} color={colorFor(activeRoom.id)} />
           <p className="chat-right-name">{activeRoom.name}</p>
@@ -478,7 +501,7 @@ const ChatPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="chat-right-section">
+        {/* <div className="chat-right-section">
           <p className="chat-right-section-title">Shared Files</p>
           <div className="chat-right-files">
             {['Q2-Report.pdf','Design-v3.fig','Sprint-24.xlsx'].map(f => (
@@ -493,8 +516,8 @@ const ChatPage: React.FC = () => {
               </div>
             ))}
           </div>
-        </div>
-      </aside>
+        </div> */}
+      </aside>}
         </>
       ) : (
         <div className="chat-main chat-empty">Select a conversation to start chatting</div>

@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft, Users, Calendar, Archive, Trash2,
+import { taskService } from '../services/taskService';
+import { type Task } from '../types/task';
+import AISummarizeModal from '../components/Tasks/AISummarizeModal';
+import { Sparkles, FileText, ArrowLeft, Users, Calendar, Archive, Trash2,
   Clock, Crown, Eye, Edit3, RefreshCw, FolderOpen,
   UserPlus, X, Send, CheckCircle, AlertCircle, Mail,
   ChevronDown, Shield, LogOut, UserMinus, Loader2 as LoaderIcon,
@@ -503,7 +505,9 @@ const ProjectDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const [project, setProject] = useState<Project | null>(null);
   const [members, setMembers] = useState<Membership[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showSummarize, setShowSummarize] = useState(false);
   const [error, setError] = useState('');
   const [archiving, setArchiving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -517,12 +521,14 @@ const ProjectDetailPage: React.FC = () => {
     if (!id) return;
     setLoading(true); setError('');
     try {
-      const [proj, mems] = await Promise.all([
+      const [proj, mems, tks] = await Promise.all([
         projectsApi.get(id),
         projectsApi.getMembers(id),
+        taskService.getTasksByProject(id),
       ]);
       setProject(proj);
       setMembers(mems);
+      setTasks(tks);
     } catch {
       setError('Project not found or could not be loaded.');
     } finally {
@@ -644,6 +650,16 @@ const ProjectDetailPage: React.FC = () => {
         </div>
 
         <div className="pd-hero-actions">
+          {isActive && (
+            <button
+              className="pd-action-btn"
+              style={{ background: '#EFF6FF', borderColor: '#DBEAFE', color: '#1D4ED8' }}
+              onClick={() => setShowSummarize(true)}
+            >
+              <Sparkles size={15} />
+              AI Summary
+            </button>
+          )}
           {isActive && (
             <button
               className="pd-action-btn pd-action-btn--warning"
@@ -808,7 +824,7 @@ const ProjectDetailPage: React.FC = () => {
       <p className="pd-id-hint">Project ID: <code>{project.id}</code></p>
 
       <AnimatePresence>
-        {showInvite && (
+        {showInvite && project && (
           <InviteModal
             projectId={project.id}
             projectName={project.name}
@@ -816,12 +832,21 @@ const ProjectDetailPage: React.FC = () => {
             onMemberAdded={fetchAll}
           />
         )}
-        {showAddTeam && (
+        {showAddTeam && project && (
           <AddTeamModal
             projectId={project.id}
             projectName={project.name}
             onClose={() => setShowAddTeam(false)}
             onAdded={fetchAll}
+          />
+        )}
+        {showSummarize && project && user?.id && (
+          <AISummarizeModal
+            projectId={project.id}
+            projectName={project.name}
+            tasks={tasks}
+            userId={user.id}
+            onClose={() => setShowSummarize(false)}
           />
         )}
       </AnimatePresence>

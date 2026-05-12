@@ -186,6 +186,7 @@ class TaskGenerationResult:
     tasks: list[GeneratedTask] = field(default_factory=list)
     tokens_used: int = 0
     raw_response: str = ""
+    model_used: str = ""
 
 
 @dataclass
@@ -462,6 +463,7 @@ def generate_tasks_from_description(description: str) -> TaskGenerationResult:
         tasks=tasks,
         tokens_used=result.tokens_used,
         raw_response=result.text,
+        model_used=result.model_used,
     )
 
 

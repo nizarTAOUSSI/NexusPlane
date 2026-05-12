@@ -16,6 +16,8 @@ import CreateTaskModal from './CreateTaskModal';
 import EditTaskModal from './EditTaskModal';
 import OnlinePresence from './OnlinePresence';
 import AIGenerateModal from './AIGenerateModal';
+import AISummarizeModal from './AISummarizeModal';
+import { FileText } from 'lucide-react';
 
 interface ColumnDef {
   id: TaskStatus;
@@ -53,6 +55,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
   const [error, setError] = useState('');
   const [showModal,  setShowModal]  = useState(false);
   const [showAI,     setShowAI]     = useState(false);
+  const [showSummarize, setShowSummarize] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const tasksRef = useRef(tasks);
@@ -310,6 +313,17 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
           </button>
         )}
 
+        {projectId && (
+          <button
+            className="kb-summarize-btn"
+            onClick={() => setShowSummarize(true)}
+            title="Summarize project with AI"
+          >
+            <FileText size={14} />
+            <span>Summarize</span>
+          </button>
+        )}
+
         <div className="kb-toolbar-right">
           <OnlinePresence
             isConnected={isConnected}
@@ -425,6 +439,16 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
                 send({ type: 'task_created', payload: { task: created } });
               }
             }}
+          />
+        )}
+
+        {showSummarize && projectId && user?.id && (
+          <AISummarizeModal
+            projectId={projectId}
+            projectName={selectedProject?.name}
+            tasks={tasks}
+            userId={user.id}
+            onClose={() => setShowSummarize(false)}
           />
         )}
       </AnimatePresence>

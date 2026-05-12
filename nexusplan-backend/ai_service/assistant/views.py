@@ -196,7 +196,7 @@ class AssistantViewSet(viewsets.GenericViewSet):
         out = GenerateTasksOutputSerializer({
             "tasks":      task_data,
             "tokensUsed": result.tokens_used,
-            "modelUsed":  getattr(result, "model_used", "unknown"),
+            "modelUsed":  result.model_used,
             "logId":      str(log.id),
         })
         return Response(out.data, status=status.HTTP_200_OK)
