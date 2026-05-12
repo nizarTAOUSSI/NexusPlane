@@ -93,6 +93,7 @@ def _get_user_by_id(user_id: str) -> dict | None:
             resp = http_requests.get(
                 f"{auth_url}/api/auth/lookup-by-id/",
                 params={"id": user_id},
+                headers={"Host": "localhost"},
                 timeout=3,
             )
             if resp.status_code == 200:
@@ -138,6 +139,7 @@ def _batch_get_users(user_ids: list[str]) -> dict[str, dict]:
             resp = http_requests.get(
                 f"{auth_url}/api/auth/lookup-by-ids/",
                 params={"ids": ",".join(missing)},
+                headers={"Host": "localhost"},
                 timeout=5,
             )
             if resp.status_code == 200:
