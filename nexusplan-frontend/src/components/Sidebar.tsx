@@ -97,7 +97,7 @@ const OnlineUsersAvatars: React.FC = () => {
         title={isConnected ? 'Live sync active' : 'Connecting…'}
       />
 
-      <div className="op-avatars">
+      <div className="nb-avatars">
         {visible.map((uid, i) => {
           const meta  = userMap[uid];
           const color = avatarColor(uid);
@@ -105,7 +105,7 @@ const OnlineUsersAvatars: React.FC = () => {
           return (
             <div
               key={uid}
-              className="nb-av nb-av--live"
+              className="nb-av nb-av--live rounded-full"
               style={{ background: color, zIndex: MAX_NAV_AV - i }}
               title={meta?.username || meta?.email || uid}
             >
