@@ -79,11 +79,29 @@ def _get_user_by_email(email: str) -> dict | None:
 
 
 def _get_user_by_id(user_id: str) -> dict | None:
-    """Resolve user info by UUID. Redis only (populated on login)."""
+    """Resolve user info by UUID. Redis first, then auth_service fallback."""
     try:
         cached = _redis().get(f"user:id:{user_id}")
         if cached:
             return json.loads(cached)
+    except Exception:
+        pass
+    # Fallback: ask auth_service directly
+    try:
+        auth_url = getattr(django_settings, "AUTH_SERVICE_URL", "").rstrip("/")
+        if auth_url:
+            resp = http_requests.get(
+                f"{auth_url}/api/auth/lookup-by-id/",
+                params={"id": user_id},
+                timeout=3,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                try:
+                    _redis().set(f"user:id:{user_id}", json.dumps(data), ex=86400)
+                except Exception:
+                    pass
+                return data
     except Exception:
         pass
     return None

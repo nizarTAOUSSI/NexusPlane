@@ -268,7 +268,7 @@ def _call_gemini(prompt: str, system_prompt: str) -> tuple[str, int, str]:
         )
 
     genai.configure(api_key=api_key)
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-preview-04-17")
 
     model = genai.GenerativeModel(
         model_name=model_name,
@@ -371,7 +371,7 @@ def _call_openrouter(prompt: str, system_prompt: str) -> tuple[str, int, str]:
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not set in the environment.")
     model = os.environ.get(
-        "OPENROUTER_MODEL", "nousresearch/hermes-3-llama-3.1-405b:free"
+        "OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free"
     )
     return _call_openai_compatible(
         prompt, system_prompt, api_key, "https://openrouter.ai/api/v1", model

@@ -399,3 +399,62 @@ class LookupByEmailView(APIView):
             )
 
         return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+
+
+class LookupByIdView(APIView):
+    """
+    Internal: look up a single user by UUID.
+    GET /api/auth/lookup-by-id/?id=<uuid>
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Look up a user by ID (internal)",
+        parameters=[
+            OpenApiParameter(name="id", type=OpenApiTypes.UUID,
+                             location=OpenApiParameter.QUERY, required=True)
+        ],
+        responses={200: UserProfileSerializer, 404: OpenApiResponse(description="Not found.")},
+        tags=_INTERNAL_TAG,
+    )
+    def get(self, request: Request) -> Response:
+        from .models import User
+        uid = request.query_params.get("id", "").strip()
+        if not uid:
+            return Response({"detail": "'id' query parameter is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            user = User.objects.get(id=uid)
+        except (User.DoesNotExist, Exception):
+            return Response({"detail": "No user found with that id."},
+                            status=status.HTTP_404_NOT_FOUND)
+        return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+
+
+class LookupByIdsView(APIView):
+    """
+    Internal: batch look up users by a comma-separated list of UUIDs.
+    GET /api/auth/lookup-by-ids/?ids=<uuid1>,<uuid2>,...
+    Returns a list (missing ids are silently skipped).
+    """
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        summary="Batch look up users by IDs (internal)",
+        parameters=[
+            OpenApiParameter(name="ids", type=OpenApiTypes.STR,
+                             location=OpenApiParameter.QUERY, required=True,
+                             description="Comma-separated UUIDs.")
+        ],
+        responses={200: UserProfileSerializer(many=True)},
+        tags=_INTERNAL_TAG,
+    )
+    def get(self, request: Request) -> Response:
+        from .models import User
+        raw = request.query_params.get("ids", "").strip()
+        if not raw:
+            return Response([], status=status.HTTP_200_OK)
+        uid_list = [u.strip() for u in raw.split(",") if u.strip()]
+        users = User.objects.filter(id__in=uid_list)
+        return Response(UserProfileSerializer(users, many=True).data, status=status.HTTP_200_OK)
+
