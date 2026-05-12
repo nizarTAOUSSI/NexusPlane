@@ -169,17 +169,24 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
     dispatch(resetDashboardLayout());
   }, [dispatch]);
 
-  // Vision Board helpers
   const getBottomY = useCallback(
     () => layout.reduce((max, item) => Math.max(max, item.y + item.h), 0),
     [layout],
   );
 
+  const genId = useCallback(
+    () =>
+      typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`,
+    [],
+  );
+
   const handleAddNote = useCallback(() => {
-    const id = `note-${crypto.randomUUID()}`;
+    const id = `note-${genId()}`;
     dispatch(addWidget({ i: id, x: 0, y: getBottomY(), w: 4, h: 3, minW: 2, minH: 2 }));
     dispatch(setNote({ id, data: { content: '', color: 'yellow' } }));
-  }, [dispatch, getBottomY]);
+  }, [dispatch, getBottomY, genId]);
 
   const handleImageFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,12 +207,12 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
         };
         img.src = url;
       });
-      const id = `image-${crypto.randomUUID()}`;
+      const id = `image-${genId()}`;
       dispatch(addWidget({ i: id, x: 0, y: getBottomY(), w: 4, h: 4, minW: 2, minH: 3 }));
       dispatch(setImage({ id, data: { src } }));
       e.target.value = '';
     },
-    [dispatch, getBottomY],
+    [dispatch, getBottomY, genId],
   );
 
   return (
