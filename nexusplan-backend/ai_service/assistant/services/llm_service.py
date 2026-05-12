@@ -649,8 +649,17 @@ def copilot_chat(user_message: str, context_data: dict) -> TextGenerationResult:
         ]
         ctx_parts.append("Recent tasks:\n" + "\n".join(lines))
 
-    # Catch-all for any extra context keys the frontend may send
-    known_keys = {"projectId", "projectName", "task", "recentTasks"}
+    if history := context_data.get("history"):
+        history_lines: list[str] = []
+        for entry in history[-8:]: 
+            role = "User" if str(entry.get("role", "")).lower() == "user" else "Assistant"
+            content = str(entry.get("content", "")).strip()[:600]
+            if content:
+                history_lines.append(f"{role}: {content}")
+        if history_lines:
+            ctx_parts.append("PREVIOUS CONVERSATION:\n" + "\n".join(history_lines))
+
+    known_keys = {"projectId", "projectName", "task", "recentTasks", "history"}
     for key, value in context_data.items():
         if key not in known_keys and value:
             ctx_parts.append(f"{key}: {json.dumps(value, default=str)[:300]}")

@@ -85,11 +85,17 @@ const AICopilot: React.FC<AICopilotProps> = ({
     setLoading(true);
 
     try {
+      const conversationHistory = messages
+        .filter(m => m.id !== 'welcome')
+        .slice(-8)
+        .map(m => ({ role: m.role, content: m.content }));
+
       const payload: CopilotPayload = {
         message: userMsg.content,
         context: {
           projectId,
           projectName,
+          ...(conversationHistory.length > 0 && { history: conversationHistory }),
           task: currentTask ? {
             title: currentTask.title,
             description: currentTask.description,

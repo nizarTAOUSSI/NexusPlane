@@ -119,10 +119,11 @@ class TaskContextSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Name or ID of the assignee (optional).",
     )
-    dueDate = serializers.DateField(
+    dueDate = serializers.CharField(
         required=False,
         allow_null=True,
-        help_text="Due date in ISO 8601 format (optional).",
+        allow_blank=True,
+        help_text="Due date (any string format — used for AI context only).",
     )
 
 
