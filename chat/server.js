@@ -23,6 +23,7 @@ const API_USER_STATUS        = process.env.API_USER_STATUS        || '/api/messa
 const API_STORE_DM           = process.env.API_STORE_DM           || '/api/messages/direct/store/';
 const API_STORE_GROUP_MSG    = process.env.API_STORE_GROUP_MSG    || '/api/messages/group/store/';
 const API_STORE_NOTIFICATION = process.env.API_STORE_NOTIFICATION || '/api/messages/notifications/store/';
+const API_MARK_DM_READ       = process.env.API_MARK_DM_READ       || '/api/messages/direct/mark-read/';
 
 console.log('🚀 NexusPlan Chat Service starting…');
 console.log('   DJANGO_URL :', DJANGO_URL);
@@ -133,7 +134,12 @@ io.on('connection', (socket) => {
             { sender_id: senderId, receiver_id: receiverId, message }
         );
 
+        // Notify sender that message was delivered (receiver is connected)
         const receiverSocketId = usersOnline[receiverId];
+        const senderSocketId = usersOnline[senderId];
+        if (saved && receiverSocketId && senderSocketId) {
+            io.to(senderSocketId).emit('messageDelivered', { roomId: receiverId });
+        }
         if (receiverSocketId) {
             const notif = await djangoFetch(
                 resolveUrl(API_STORE_NOTIFICATION),
@@ -185,6 +191,21 @@ io.on('connection', (socket) => {
             room,
             isTyping,
         });
+    });
+
+    socket.on('markDMRead', async ({ otherUserId }) => {
+        if (!currentUserId || !otherUserId) return;
+        // Mark messages from otherUserId → currentUserId as read in DB
+        await djangoFetch(
+            resolveUrl(API_MARK_DM_READ),
+            'POST',
+            { sender_id: otherUserId, reader_id: currentUserId }
+        );
+        // Tell the original sender their messages were read
+        const otherSocketId = usersOnline[otherUserId];
+        if (otherSocketId) {
+            io.to(otherSocketId).emit('messagesRead', { roomId: currentUserId });
+        }
     });
 
     socket.on('sendMessage', async ({ room, message, senderId, receiverId }) => {

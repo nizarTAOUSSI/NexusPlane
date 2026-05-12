@@ -1,10 +1,35 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { useNavigate } from 'react-router-dom';
 import { teamsApi, type TeamMember } from '../teamsApi';
 import api from '../api';
 import { useAuth } from './AuthContext';
 
 const SOCKET_URL = (import.meta as any).env?.VITE_CHAT_URL || 'https://nexusplane.duckdns.org';
+
+interface ToastNotif {
+  id: string;
+  senderName: string;
+  message: string;
+  roomId: string;
+}
+
+function playNotificationSound() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, ctx.currentTime);
+    osc.frequency.setValueAtTime(880, ctx.currentTime + 0.12);
+    gain.gain.setValueAtTime(0.25, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.45);
+  } catch { }
+}
 
 export interface ChatRoom {
   id: string;
@@ -46,16 +71,20 @@ const ChatContext = createContext<ChatContextValue>({
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, token } = useAuth() as any;
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [roomMembers, setRoomMembersState] = useState<Record<string, TeamMember[]>>({});
   const [roomsLoaded, setRoomsLoaded] = useState(false);
   const [connected, setConnected] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<ToastNotif[]>([]);
   const socketRef = useRef<Socket | null>(null);
   const activeRoomIdRef = useRef<string | null>(null);
+  const roomsRef = useRef<ChatRoom[]>([]);
   const updateRoomLastMsgRef = useRef<(roomId: string, msg: string, time: string, isActive: boolean) => void>(() => {});
 
   useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
+  useEffect(() => { roomsRef.current = rooms; }, [rooms]);
 
   const setRoomMembers = useCallback((roomId: string, members: TeamMember[]) => {
     setRoomMembersState(prev => ({ ...prev, [roomId]: members }));
@@ -102,6 +131,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const isActive = activeRoomIdRef.current === targetRoomId;
       updateRoomLastMsgRef.current(targetRoomId, data.message, msgTime, isActive);
+
+      if (data.senderId !== user?.id && !isActive) {
+        const room = roomsRef.current.find(r => r.id === targetRoomId);
+        const senderName = room?.name ?? data.senderId;
+        const toastId = crypto.randomUUID();
+        setToasts(prev => [...prev, { id: toastId, senderName, message: data.message, roomId: targetRoomId }]);
+        playNotificationSound();
+        setTimeout(() => setToasts(prev => prev.filter(t => t.id !== toastId)), 4500);
+      }
     });
 
     return () => {
@@ -197,6 +235,34 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }}
     >
       {children}
+
+      <div className="chat-toast-stack">
+        {toasts.map(t => (
+          <button
+            key={t.id}
+            className="chat-toast"
+            onClick={() => {
+              setToasts(prev => prev.filter(x => x.id !== t.id));
+              navigate(`/chat/${t.roomId}`);
+            }}
+          >
+            <div className="chat-toast-icon">
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <div className="chat-toast-body">
+              <p className="chat-toast-sender">{t.senderName}</p>
+              <p className="chat-toast-msg">{t.message.length > 60 ? t.message.slice(0, 60) + '…' : t.message}</p>
+            </div>
+            <button
+              className="chat-toast-close"
+              onClick={e => { e.stopPropagation(); setToasts(prev => prev.filter(x => x.id !== t.id)); }}
+              aria-label="Dismiss"
+            >×</button>
+          </button>
+        ))}
+      </div>
     </ChatContext.Provider>
   );
 };

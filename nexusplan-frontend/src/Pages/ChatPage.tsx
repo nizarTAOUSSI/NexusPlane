@@ -11,6 +11,7 @@ interface Message {
   message: string;
   timestamp: string;
   type: 'dm' | 'group';
+  status?: 'sent' | 'delivered' | 'read';
 }
 
 function initials(name: string) {
@@ -34,6 +35,24 @@ const AvatarChip: React.FC<{ name: string; size?: number; color?: string }> = ({
 
 const COLORS = ['#6366F1','#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#EC4899','#3B82F6'];
 function colorFor(id: string) { return COLORS[id.charCodeAt(0) % COLORS.length]; }
+
+const StatusTick: React.FC<{ status?: 'sent' | 'delivered' | 'read' }> = ({ status }) => {
+  if (!status) return null;
+  if (status === 'sent') {
+    return (
+      <svg className="msg-status-tick" width="14" height="10" viewBox="0 0 14 10" fill="none">
+        <path d="M1 5l3 3 6-6" stroke="rgba(255,255,255,0.55)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    );
+  }
+  const color = status === 'read' ? '#93c5fd' : 'rgba(255,255,255,0.55)';
+  return (
+    <svg className="msg-status-tick" width="18" height="10" viewBox="0 0 18 10" fill="none">
+      <path d="M1 5l3 3 6-6" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M5 5l3 3 6-6" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+};
 
 const ChatPage: React.FC = () => {
   const { user } = useAuth() as any;
@@ -72,6 +91,9 @@ const ChatPage: React.FC = () => {
     if (!socket || !user?.id) return;
 
     const onMessage = (data: any) => {
+      // Skip own messages — we add them optimistically in sendMessage
+      if (data.senderId === user?.id) return;
+
       const current = activeRoomRef.current;
       if (!current) return;
       const msgTime = data.timestamp || new Date().toISOString();
@@ -98,11 +120,33 @@ const ChatPage: React.FC = () => {
       }
     };
 
+    // Update all sent messages in this room to 'delivered'
+    const onDelivered = (_data: any) => {
+      setMessages(prev => prev.map(m =>
+        m.senderId === user?.id && m.type === 'dm' && (m.status === 'sent' || !m.status)
+          ? { ...m, status: 'delivered' as const }
+          : m
+      ));
+    };
+
+    // Update all sent messages in this room to 'read'
+    const onRead = (data: any) => {
+      const current = activeRoomRef.current;
+      if (!current || data.roomId !== current.id) return;
+      setMessages(prev => prev.map(m =>
+        m.senderId === user?.id ? { ...m, status: 'read' as const } : m
+      ));
+    };
+
     socket.on('receiveMessage', onMessage);
     socket.on('userTyping', onTyping);
+    socket.on('messageDelivered', onDelivered);
+    socket.on('messagesRead', onRead);
     return () => {
       socket.off('receiveMessage', onMessage);
       socket.off('userTyping', onTyping);
+      socket.off('messageDelivered', onDelivered);
+      socket.off('messagesRead', onRead);
     };
   }, [socket, user?.id]);
 
@@ -120,6 +164,10 @@ const ChatPage: React.FC = () => {
         targetUserId: activeRoom.id,
         senderId: user?.id
       });
+      // For DMs, notify the other person we've read their messages
+      if (activeRoom.type === 'dm') {
+        socket.emit('markDMRead', { otherUserId: activeRoom.id });
+      }
     }
 
     const endpoint = activeRoom.type === 'group'
@@ -127,7 +175,13 @@ const ChatPage: React.FC = () => {
       : `messages/direct/${activeRoom.id}/history/`;
 
     api.get(endpoint).then(res => {
-      const history = res.data as Message[];
+      const rawHistory = res.data as Array<Message & { is_read?: boolean }>;
+      const history: Message[] = rawHistory.map(m => ({
+        ...m,
+        status: m.senderId === user?.id
+          ? (m.is_read ? 'read' : 'sent')
+          : undefined,
+      }));
       setMessages(history);
       if (history.length > 0) {
         const last = history[history.length - 1];
@@ -146,6 +200,19 @@ const ChatPage: React.FC = () => {
     setInput('');
 
     if (!activeRoom) return;
+
+    // Add optimistically so the message appears instantly
+    const now = new Date().toISOString();
+    setMessages(prev => [...prev, {
+      id: crypto.randomUUID(),
+      senderId: user?.id,
+      senderName: 'You',
+      message: text,
+      timestamp: now,
+      type: activeRoom.type,
+      status: 'sent',
+    }]);
+
     if (activeRoom.type === 'group') {
       socket.emit('sendGroupMessage', {
         roomId: activeRoom.id,
@@ -315,7 +382,10 @@ const ChatPage: React.FC = () => {
                   <div className={`chat-bubble${isMe ? ' chat-bubble--me' : ''}`}>
                     <p className="chat-bubble-text">{msg.message}</p>
                   </div>
-                  <p className="chat-msg-time">{fmtTime(msg.timestamp)}</p>
+                  <p className="chat-msg-time">
+                    {fmtTime(msg.timestamp)}
+                    {isMe && <StatusTick status={msg.status} />}
+                  </p>
                 </div>
               </div>
             );

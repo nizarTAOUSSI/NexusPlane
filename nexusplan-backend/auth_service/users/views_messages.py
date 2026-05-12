@@ -120,6 +120,7 @@ def dm_history(request, other_user_id):
         "message": m.message,
         "timestamp": m.created_at.isoformat(),
         "type": "dm",
+        "is_read": m.is_read,
     } for m in messages])
 
 
@@ -202,3 +203,19 @@ def recent_conversations(request):
 
     results.sort(key=lambda x: x["lastTime"], reverse=True)
     return Response(results)
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def mark_dm_read(request):
+    """Mark all unread DMs from sender_id to reader_id as read (internal API)."""
+    if not verify_internal_key(request):
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+    sender_id = request.data.get("sender_id")
+    reader_id = request.data.get("reader_id")
+    if not sender_id or not reader_id:
+        return Response({"error": "sender_id and reader_id required"}, status=status.HTTP_400_BAD_REQUEST)
+    updated = DirectMessage.objects.filter(
+        sender_id=sender_id, receiver_id=reader_id, is_read=False
+    ).update(is_read=True)
+    return Response({"status": "ok", "marked": updated})
