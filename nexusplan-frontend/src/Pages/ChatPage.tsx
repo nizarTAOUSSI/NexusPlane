@@ -4,18 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { teamsApi } from '../teamsApi';
 import type { TeamMember } from '../teamsApi';
 import api from '../api';
-
-interface ChatRoom {
-  id: string;
-  name: string;
-  type: 'dm' | 'group';
-  avatar?: string;
-  lastMsg?: string;
-  lastTime?: string;
-  unread?: number;
-  online?: boolean;
-  members?: number;
-}
+import { useChatContext, type ChatRoom } from '../context/ChatContext';
 
 interface Message {
   id: string;
@@ -55,10 +44,12 @@ function colorFor(id: string) { return COLORS[id.charCodeAt(0) % COLORS.length];
 const ChatPage: React.FC = () => {
   const { user, token } = useAuth() as any;
 
-  const [rooms, setRooms]           = useState<ChatRoom[]>([]);
+  const { rooms, setRooms, roomMembers, setRoomMembers, updateRoomLastMsg, pendingRoomId, setPendingRoomId } = useChatContext();
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const activeRoomRef = useRef<ChatRoom | null>(null);
   useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
+  const updateRoomLastMsgRef = useRef(updateRoomLastMsg);
+  useEffect(() => { updateRoomLastMsgRef.current = updateRoomLastMsg; }, [updateRoomLastMsg]);
   const [loading, setLoading]       = useState(true);
   const [messages, setMessages]     = useState<Message[]>([]);
   const [input, setInput]           = useState('');
@@ -88,8 +79,9 @@ const ChatPage: React.FC = () => {
             members: team.memberCount,
           });
 
-          // Fetch members to populate DMs
+          // Fetch members to populate DMs and store in context
           const members = await teamsApi.getMembers(team.id);
+          setRoomMembers(team.id, members);
           for (const m of members) {
             if (m.userId !== user?.id) {
               usersMap.set(m.userId, m);
@@ -110,6 +102,30 @@ const ChatPage: React.FC = () => {
 
         setRooms(newRooms);
         if (newRooms.length > 0) setActiveRoom(newRooms[0]);
+
+        // Hydrate sidebar with last messages from the backend
+        try {
+          const groupIds = newRooms.filter(r => r.type === 'group').map(r => r.id).join(',');
+          const res = await api.get(
+            `messages/conversations/recent/${groupIds ? `?group_ids=${encodeURIComponent(groupIds)}` : ''}`
+          );
+          const recent = res.data as Array<{
+            type: 'dm' | 'group';
+            roomId: string;
+            lastMsg: string;
+            lastTime: string;
+            unread: number;
+          }>;
+          setRooms(prev =>
+            prev.map(r => {
+              const match = recent.find(c => c.roomId === r.id);
+              if (!match) return r;
+              return { ...r, lastMsg: match.lastMsg, lastTime: match.lastTime, unread: match.unread };
+            })
+          );
+        } catch {
+          // sidebar preview just won't be pre-populated
+        }
       } catch (err) {
         console.error("Failed to load chat data", err);
       } finally {
@@ -138,24 +154,31 @@ const ChatPage: React.FC = () => {
     sock.on('disconnect', () => setConnected(false));
     sock.on('receiveMessage', (data: any) => {
       const current = activeRoomRef.current;
-      if (!current) return;
+      const msgTime = data.timestamp || new Date().toISOString();
 
-      if (data.type === 'group' && data.roomId !== current.id) return;
-      if (data.type === 'dm') {
-        const otherUserId = data.senderId === user?.id ? data.receiverId : data.senderId;
-        if (current.type !== 'dm' || current.id !== otherUserId) return;
-      }
+      // Determine which room this message belongs to
+      const targetRoomId = data.type === 'group'
+        ? data.roomId
+        : (data.senderId === user?.id ? data.receiverId : data.senderId);
 
-      setMessages(prev => {
-        return [...prev, {
-          id: crypto.randomUUID(),
-          senderId: data.senderId,
-          senderName: data.senderId === user?.id ? 'You' : data.senderId,
-          message: data.message,
-          timestamp: data.timestamp || new Date().toISOString(),
-          type: data.type,
-        }];
-      });
+      const isActiveRoom = current !== null && (
+        (data.type === 'group' && current.id === targetRoomId) ||
+        (data.type === 'dm' && current.type === 'dm' && current.id === targetRoomId)
+      );
+
+      // Always update the sidebar last-message preview
+      updateRoomLastMsgRef.current(targetRoomId, data.message, msgTime, isActiveRoom);
+
+      if (!isActiveRoom) return;
+
+      setMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        senderId: data.senderId,
+        senderName: data.senderId === user?.id ? 'You' : data.senderId,
+        message: data.message,
+        timestamp: msgTime,
+        type: data.type,
+      }]);
     });
     sock.on('userTyping', (data: any) => {
       if (data.userId !== user?.id) {
@@ -170,6 +193,10 @@ const ChatPage: React.FC = () => {
     if (!activeRoom || !user?.id) return;
     setMessages([]);
     setTyping(null);
+
+    // Reset unread for the room we just opened
+    setRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, unread: 0 } : r));
+
     const sock = socketRef.current;
     if (sock) {
       sock.emit('joinRoom', {
@@ -186,13 +213,30 @@ const ChatPage: React.FC = () => {
       : `messages/direct/${activeRoom.id}/history/`;
 
     api.get(endpoint).then(res => {
-      setMessages(res.data);
+      const history = res.data as Message[];
+      setMessages(history);
+      // Populate sidebar last-message from history
+      if (history.length > 0) {
+        const last = history[history.length - 1];
+        updateRoomLastMsgRef.current(activeRoom.id, last.message, last.timestamp, true);
+      }
     }).catch(() => {/* history unavailable, start fresh */});
   }, [activeRoom?.id, user?.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Navigate from sidebar to a specific room
+  useEffect(() => {
+    if (pendingRoomId && rooms.length > 0) {
+      const room = rooms.find(r => r.id === pendingRoomId);
+      if (room) {
+        setActiveRoom(room);
+        setPendingRoomId(null);
+      }
+    }
+  }, [pendingRoomId, rooms]);
 
   const sendMessage = useCallback(() => {
     const text = input.trim();
@@ -284,7 +328,7 @@ const ChatPage: React.FC = () => {
               <div className="chat-room-info">
                 <div className="chat-room-name-row">
                   <span className="chat-room-name">{room.name}</span>
-                  <span className="chat-room-time">{room.lastTime}</span>
+                  <span className="chat-room-time">{room.lastTime ? fmtTime(room.lastTime) : ''}</span>
                 </div>
                 <div className="chat-room-last-row">
                   <span className="chat-room-last">{room.lastMsg}</span>
@@ -432,13 +476,34 @@ const ChatPage: React.FC = () => {
         <div className="chat-right-section">
           <p className="chat-right-section-title">Members</p>
           <div className="chat-right-members">
-            {(['Alice Martin','Bob Chen','Sara Okafor','Tom Lee'].slice(0, activeRoom.members ?? 4)).map((name) => (
-              <div key={name} className="chat-right-member">
-                <AvatarChip name={name} size={30} color={colorFor(name)} />
-                <span className="chat-right-member-name">{name}</span>
-                <span className="chat-right-member-dot" />
-              </div>
-            ))}
+            {activeRoom.type === 'group'
+              ? (roomMembers[activeRoom.id] || []).map(m => {
+                  const name = m.username || m.email || 'Unknown';
+                  return (
+                    <div key={m.userId} className="chat-right-member">
+                      {m.avatar
+                        ? <img src={m.avatar} alt={name} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                        : <AvatarChip name={name} size={30} color={colorFor(m.userId)} />
+                      }
+                      <span className="chat-right-member-name">{name}</span>
+                      <span className="chat-right-member-dot" />
+                    </div>
+                  );
+                })
+              : (
+                <div className="chat-right-member">
+                  {activeRoom.avatar
+                    ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    : <AvatarChip name={activeRoom.name} size={30} color={colorFor(activeRoom.id)} />
+                  }
+                  <span className="chat-right-member-name">{activeRoom.name}</span>
+                  <span className="chat-right-member-dot" />
+                </div>
+              )
+            }
+            {activeRoom.type === 'group' && !(roomMembers[activeRoom.id]?.length) && (
+              <p style={{ fontSize: 12, opacity: 0.45, padding: '4px 0' }}>Loading members…</p>
+            )}
           </div>
         </div>
 

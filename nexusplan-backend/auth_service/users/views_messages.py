@@ -137,3 +137,68 @@ def group_history(request, room_id):
         "type": "group",
         "roomId": m.room_id,
     } for m in messages])
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def recent_conversations(request):
+    """
+    Returns the last message for each conversation the authenticated user
+    has participated in.
+
+    Query params:
+      group_ids  — comma-separated list of group room IDs the caller belongs to.
+                   Without this, only DM conversations are included.
+    """
+    user = request.user
+    group_ids_param = request.query_params.get("group_ids", "")
+    group_ids = [g.strip() for g in group_ids_param.split(",") if g.strip()]
+
+    results = []
+
+    all_dms = (
+        DirectMessage.objects
+        .filter(Q(sender=user) | Q(receiver=user))
+        .order_by("-created_at")
+        .select_related("sender", "receiver")
+    )
+
+    seen_partners: set = set()
+    for dm in all_dms:
+        partner = dm.receiver if str(dm.sender_id) == str(user.id) else dm.sender
+        if partner.id in seen_partners:
+            continue
+        seen_partners.add(partner.id)
+
+        unread = DirectMessage.objects.filter(
+            sender=partner, receiver=user, is_read=False
+        ).count()
+
+        results.append({
+            "type": "dm",
+            "roomId": str(partner.id),
+            "lastMsg": dm.message,
+            "lastTime": dm.created_at.isoformat(),
+            "unread": unread,
+        })
+
+    # --- Groups: latest message per requested room ---
+    for room_id in group_ids:
+        last = (
+            GroupMessage.objects
+            .filter(room_id=room_id)
+            .order_by("-created_at")
+            .select_related("sender")
+            .first()
+        )
+        if last:
+            results.append({
+                "type": "group",
+                "roomId": room_id,
+                "lastMsg": last.message,
+                "lastTime": last.created_at.isoformat(),
+                "unread": 0,
+            })
+
+    results.sort(key=lambda x: x["lastTime"], reverse=True)
+    return Response(results)

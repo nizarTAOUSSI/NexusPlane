@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
+import { useChatContext } from '../context/ChatContext';
 import logo from '../assets/logoNexus.png';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -33,12 +34,6 @@ const NAV_ITEMS = [
   { id: 'chat',     icon: MessageSquare,   path: '/chat',     label: 'Chat' },
 ];
 
-const MESSAGES = [
-  { id: 1, name: 'Esther Howard', avatar: 'https://i.pravatar.cc/36?img=5', online: true },
-  { id: 2, name: 'Jacob Jones', avatar: 'https://i.pravatar.cc/36?img=12', online: false },
-  { id: 3, name: 'Cody Fisher', avatar: 'https://i.pravatar.cc/36?img=8', online: true },
-];
-
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: 'Dashboard',
   projects: 'My Projects',
@@ -65,6 +60,28 @@ function avatarColor(userId: string): string {
   for (const c of userId) h = ((h << 5) + h + c.charCodeAt(0)) >>> 0;
   return CURSOR_PALETTE[h % CURSOR_PALETTE.length];
 }
+
+const CHAT_COLORS = ['#6366F1','#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#EC4899','#3B82F6'];
+function chatColorFor(id: string) { return CHAT_COLORS[id.charCodeAt(0) % CHAT_COLORS.length]; }
+function fmtChatTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+const MiniAvatar: React.FC<{ name: string; avatar?: string; size?: number }> = ({ name, avatar, size = 36 }) => {
+  const color = chatColorFor(name);
+  const label = name.split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+  return avatar ? (
+    <img src={avatar} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+  ) : (
+    <div style={{
+      width: size, height: size, borderRadius: '50%', background: color,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#fff', fontWeight: 700, fontSize: size * 0.37, flexShrink: 0,
+      letterSpacing: '-0.5px',
+    }}>{label}</div>
+  );
+};
 
 const OnlineUsersAvatars: React.FC = () => {
   const { isConnected, onlineUserIds, userMap } = useRealtime();
@@ -217,6 +234,16 @@ const Sidebar: React.FC = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [subOpen, setSubOpen] = useState<string | null>('dashboard');
+  const { rooms, setPendingRoomId } = useChatContext();
+
+  const recentConvos = [...rooms]
+    .filter(r => !!r.lastMsg)
+    .sort((a, b) => {
+      if (!a.lastTime) return 1;
+      if (!b.lastTime) return -1;
+      return b.lastTime.localeCompare(a.lastTime);
+    })
+    .slice(0, 3);
 
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + '/');
@@ -395,23 +422,53 @@ const Sidebar: React.FC = () => {
           </AnimatePresence>
         </div>
 
-        {MESSAGES.map(m => (
-          <button key={m.id} className="sb-contact" title={collapsed ? m.name : undefined}>
-            <div className="sb-contact-av-wrap">
-              <img src={m.avatar} alt={m.name} className="sb-contact-av" />
-              {m.online && <span className="sb-contact-dot" />}
+        {recentConvos.length === 0 && !collapsed && (
+          <p style={{ fontSize: 11, opacity: 0.4, padding: '4px 12px' }}>No recent chats</p>
+        )}
+        {recentConvos.map(room => (
+          <button
+            key={room.id}
+            className="sb-contact"
+            title={collapsed ? room.name : undefined}
+            onClick={() => { setPendingRoomId(room.id); navigate('/chat'); }}
+          >
+            <div className="sb-contact-av-wrap" style={{ position: 'relative' }}>
+              <MiniAvatar name={room.name} avatar={room.avatar} size={36} />
+              {(room.unread ?? 0) > 0 && (
+                <span style={{
+                  position: 'absolute', top: -2, right: -2,
+                  background: '#EF4444', color: '#fff', borderRadius: '50%',
+                  width: 16, height: 16, fontSize: 10, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {(room.unread ?? 0) > 9 ? '9+' : room.unread}
+                </span>
+              )}
             </div>
             <AnimatePresence initial={false}>
               {!collapsed && (
-                <motion.span
+                <motion.div
                   className="sb-contact-name"
+                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', overflow: 'hidden', flex: 1 }}
                   initial={{ opacity: 0, x: -6 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -6 }}
                   transition={{ duration: 0.15 }}
                 >
-                  {m.name}
-                </motion.span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+                    <span style={{ fontWeight: (room.unread ?? 0) > 0 ? 600 : 400, fontSize: 13, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 110 }}>
+                      {room.name}
+                    </span>
+                    {room.lastTime && (
+                      <span style={{ fontSize: 10, opacity: 0.45, flexShrink: 0 }}>{fmtChatTime(room.lastTime)}</span>
+                    )}
+                  </div>
+                  {room.lastMsg && (
+                    <span style={{ fontSize: 11, opacity: 0.55, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140 }}>
+                      {room.lastMsg.length > 28 ? room.lastMsg.slice(0, 28) + '\u2026' : room.lastMsg}
+                    </span>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
           </button>

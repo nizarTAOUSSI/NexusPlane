@@ -2,11 +2,13 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar, { TopNavbar } from '../components/Sidebar';
 import { RealtimeProvider } from '../context/RealtimeContext';
+import { ChatProvider } from '../context/ChatContext';
 import CursorOverlay from '../components/CursorOverlay';
 
 const DashboardLayout: React.FC = () => {
   return (
     <RealtimeProvider>
+      <ChatProvider>
       <div className="app-shell">
         <TopNavbar />
 
@@ -19,6 +21,7 @@ const DashboardLayout: React.FC = () => {
 
         <CursorOverlay />
       </div>
+      </ChatProvider>
     </RealtimeProvider>
   );
 };
