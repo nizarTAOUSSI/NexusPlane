@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { teamsApi } from '../teamsApi';
-import type { TeamMember } from '../teamsApi';
 import api from '../api';
 import { useChatContext, type ChatRoom } from '../context/ChatContext';
 
@@ -14,10 +12,6 @@ interface Message {
   timestamp: string;
   type: 'dm' | 'group';
 }
-
-const SOCKET_URL = import.meta.env.VITE_CHAT_URL || 'https://nexusplane.duckdns.org';
-
-
 
 function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -42,135 +36,52 @@ const COLORS = ['#6366F1','#8B5CF6','#06B6D4','#10B981','#F59E0B','#EF4444','#EC
 function colorFor(id: string) { return COLORS[id.charCodeAt(0) % COLORS.length]; }
 
 const ChatPage: React.FC = () => {
-  const { user, token } = useAuth() as any;
+  const { user } = useAuth() as any;
+  const { roomId: urlRoomId } = useParams<{ roomId: string }>();
+  const navigate = useNavigate();
 
-  const { rooms, setRooms, roomMembers, setRoomMembers, updateRoomLastMsg, pendingRoomId, setPendingRoomId } = useChatContext();
+  const { rooms, setRooms, roomMembers, roomsLoaded, updateRoomLastMsg,
+          socket, connected, setActiveRoomId } = useChatContext();
+
   const [activeRoom, setActiveRoom] = useState<ChatRoom | null>(null);
   const activeRoomRef = useRef<ChatRoom | null>(null);
   useEffect(() => { activeRoomRef.current = activeRoom; }, [activeRoom]);
-  const updateRoomLastMsgRef = useRef(updateRoomLastMsg);
-  useEffect(() => { updateRoomLastMsgRef.current = updateRoomLastMsg; }, [updateRoomLastMsg]);
-  const [loading, setLoading]       = useState(true);
+
   const [messages, setMessages]     = useState<Message[]>([]);
   const [input, setInput]           = useState('');
   const [search, setSearch]         = useState('');
-  const [connected, setConnected]   = useState(false);
   const [typing, setTyping]         = useState<string | null>(null);
 
-  const socketRef  = useRef<Socket | null>(null);
-  const bottomRef  = useRef<HTMLDivElement>(null);
+  const bottomRef   = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        const myTeams = await teamsApi.list();
-        
-        const newRooms: ChatRoom[] = [];
-        const usersMap = new Map<string, TeamMember>();
-
-        // Add Teams as Group Rooms
-        for (const team of myTeams) {
-          newRooms.push({
-            id: team.id,
-            name: team.name,
-            type: 'group',
-            members: team.memberCount,
-          });
-
-          // Fetch members to populate DMs and store in context
-          const members = await teamsApi.getMembers(team.id);
-          setRoomMembers(team.id, members);
-          for (const m of members) {
-            if (m.userId !== user?.id) {
-              usersMap.set(m.userId, m);
-            }
-          }
-        }
-
-        // Add unique members as DM rooms
-        for (const [userId, m] of usersMap.entries()) {
-          newRooms.push({
-            id: userId,
-            name: m.username || m.email || 'Unknown User',
-            type: 'dm',
-            avatar: m.avatar || undefined,
-            online: false // could be synced with socket presence
-          });
-        }
-
-        setRooms(newRooms);
-        if (newRooms.length > 0) setActiveRoom(newRooms[0]);
-
-        // Hydrate sidebar with last messages from the backend
-        try {
-          const groupIds = newRooms.filter(r => r.type === 'group').map(r => r.id).join(',');
-          const res = await api.get(
-            `messages/conversations/recent/${groupIds ? `?group_ids=${encodeURIComponent(groupIds)}` : ''}`
-          );
-          const recent = res.data as Array<{
-            type: 'dm' | 'group';
-            roomId: string;
-            lastMsg: string;
-            lastTime: string;
-            unread: number;
-          }>;
-          setRooms(prev =>
-            prev.map(r => {
-              const match = recent.find(c => c.roomId === r.id);
-              if (!match) return r;
-              return { ...r, lastMsg: match.lastMsg, lastTime: match.lastTime, unread: match.unread };
-            })
-          );
-        } catch {
-          // sidebar preview just won't be pre-populated
-        }
-      } catch (err) {
-        console.error("Failed to load chat data", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    
-    if (user?.id) {
-      loadData();
-    }
-  }, [user]);
+    if (!roomsLoaded || rooms.length === 0) return;
+    const target = urlRoomId
+      ? rooms.find(r => r.id === urlRoomId) ?? rooms[0]
+      : rooms[0];
+    setActiveRoom(target);
+    if (!urlRoomId) navigate(`/chat/${target.id}`, { replace: true });
+  }, [roomsLoaded, urlRoomId]);
 
   useEffect(() => {
-    if (!user?.id || !token) return;
+    setActiveRoomId(activeRoom?.id ?? null);
+  }, [activeRoom?.id]);
 
-    const sock = io(SOCKET_URL, {
-      reconnectionAttempts: 3,
-      timeout: 5000
-    });
-    socketRef.current = sock;
+  useEffect(() => {
+    if (!socket || !user?.id) return;
 
-    sock.on('connect', () => {
-      setConnected(true);
-      sock.emit('userOnline', { userId: user.id, token: token });
-    });
-    sock.on('disconnect', () => setConnected(false));
-    sock.on('receiveMessage', (data: any) => {
+    const onMessage = (data: any) => {
       const current = activeRoomRef.current;
+      if (!current) return;
       const msgTime = data.timestamp || new Date().toISOString();
-
-      // Determine which room this message belongs to
-      const targetRoomId = data.type === 'group'
+      const targetRoomId: string = data.type === 'group'
         ? data.roomId
         : (data.senderId === user?.id ? data.receiverId : data.senderId);
-
-      const isActiveRoom = current !== null && (
+      const isActiveRoom =
         (data.type === 'group' && current.id === targetRoomId) ||
-        (data.type === 'dm' && current.type === 'dm' && current.id === targetRoomId)
-      );
-
-      // Always update the sidebar last-message preview
-      updateRoomLastMsgRef.current(targetRoomId, data.message, msgTime, isActiveRoom);
-
+        (data.type === 'dm'    && current.type === 'dm' && current.id === targetRoomId);
       if (!isActiveRoom) return;
-
       setMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         senderId: data.senderId,
@@ -179,27 +90,31 @@ const ChatPage: React.FC = () => {
         timestamp: msgTime,
         type: data.type,
       }]);
-    });
-    sock.on('userTyping', (data: any) => {
+    };
+
+    const onTyping = (data: any) => {
       if (data.userId !== user?.id) {
         setTyping(data.isTyping ? data.userId : null);
       }
-    });
+    };
 
-    return () => { sock.disconnect(); };
-  }, [user?.id, token]);
+    socket.on('receiveMessage', onMessage);
+    socket.on('userTyping', onTyping);
+    return () => {
+      socket.off('receiveMessage', onMessage);
+      socket.off('userTyping', onTyping);
+    };
+  }, [socket, user?.id]);
 
   useEffect(() => {
     if (!activeRoom || !user?.id) return;
     setMessages([]);
     setTyping(null);
 
-    // Reset unread for the room we just opened
     setRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, unread: 0 } : r));
 
-    const sock = socketRef.current;
-    if (sock) {
-      sock.emit('joinRoom', {
+    if (socket) {
+      socket.emit('joinRoom', {
         type: activeRoom.type,
         roomId: activeRoom.id,
         targetUserId: activeRoom.id,
@@ -207,7 +122,6 @@ const ChatPage: React.FC = () => {
       });
     }
 
-    // Fetch message history
     const endpoint = activeRoom.type === 'group'
       ? `messages/group/${activeRoom.id}/history/`
       : `messages/direct/${activeRoom.id}/history/`;
@@ -215,46 +129,34 @@ const ChatPage: React.FC = () => {
     api.get(endpoint).then(res => {
       const history = res.data as Message[];
       setMessages(history);
-      // Populate sidebar last-message from history
       if (history.length > 0) {
         const last = history[history.length - 1];
-        updateRoomLastMsgRef.current(activeRoom.id, last.message, last.timestamp, true);
+        updateRoomLastMsg(activeRoom.id, last.message, last.timestamp, true);
       }
-    }).catch(() => {/* history unavailable, start fresh */});
+    }).catch(() => {});
   }, [activeRoom?.id, user?.id]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Navigate from sidebar to a specific room
-  useEffect(() => {
-    if (pendingRoomId && rooms.length > 0) {
-      const room = rooms.find(r => r.id === pendingRoomId);
-      if (room) {
-        setActiveRoom(room);
-        setPendingRoomId(null);
-      }
-    }
-  }, [pendingRoomId, rooms]);
-
   const sendMessage = useCallback(() => {
     const text = input.trim();
-    if (!text || !socketRef.current) return;
+    if (!text || !socket) return;
     setInput('');
 
     if (!activeRoom) return;
     if (activeRoom.type === 'group') {
-      socketRef.current.emit('sendGroupMessage', {
+      socket.emit('sendGroupMessage', {
         roomId: activeRoom.id,
         roomType: 'group',
         message: text,
         senderId: user?.id
       });
     } else {
-      socketRef.current.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id });
+      socket.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id });
     }
-  }, [input, activeRoom, user]);
+  }, [input, activeRoom, user, socket]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -262,8 +164,7 @@ const ChatPage: React.FC = () => {
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
-    const sock = socketRef.current;
-    if (!sock || !activeRoom || !user) return;
+    if (!socket || !activeRoom || !user) return;
     
     let room = '';
     if (activeRoom.type === 'group') {
@@ -273,16 +174,16 @@ const ChatPage: React.FC = () => {
       room = `dm_${ids[0]}_${ids[1]}`;
     }
     
-    sock.emit('typing', { room, isTyping: true });
+    socket.emit('typing', { room, isTyping: true });
     if (typingTimer.current) clearTimeout(typingTimer.current);
-    typingTimer.current = setTimeout(() => sock.emit('typing', { room, isTyping: false }), 1500);
+    typingTimer.current = setTimeout(() => socket.emit('typing', { room, isTyping: false }), 1500);
   };
 
   const filtered = rooms.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  if (loading) {
+  if (!roomsLoaded) {
     return <div className="chat-page" style={{ alignItems: 'center', justifyContent: 'center' }}>Loading chats...</div>;
   }
 
@@ -319,7 +220,7 @@ const ChatPage: React.FC = () => {
             <button
               key={room.id}
               className={`chat-room-item${activeRoom?.id === room.id ? ' chat-room-item--active' : ''}`}
-              onClick={() => setActiveRoom(room)}
+              onClick={() => navigate(`/chat/${room.id}`)}
             >
               <div className="chat-room-avatar-wrap">
                 <AvatarChip name={room.name} size={42} color={colorFor(room.id)} />

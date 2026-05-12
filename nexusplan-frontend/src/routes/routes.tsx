@@ -46,6 +46,7 @@ export const router = createBrowserRouter([
           { path: '/dashboard/notifications', element: <DashboardPage /> },
           { path: '/tasks', element: <TaskBoard /> },
           { path: '/chat', element: <ChatPage /> },
+          { path: '/chat/:roomId', element: <ChatPage /> },
         ],
       },  
     ],

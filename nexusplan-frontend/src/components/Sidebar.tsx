@@ -234,7 +234,7 @@ const Sidebar: React.FC = () => {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [subOpen, setSubOpen] = useState<string | null>('dashboard');
-  const { rooms, setPendingRoomId } = useChatContext();
+  const { rooms } = useChatContext();
 
   const recentConvos = [...rooms]
     .filter(r => !!r.lastMsg)
@@ -430,7 +430,7 @@ const Sidebar: React.FC = () => {
             key={room.id}
             className="sb-contact"
             title={collapsed ? room.name : undefined}
-            onClick={() => { setPendingRoomId(room.id); navigate('/chat'); }}
+            onClick={() => navigate(`/chat/${room.id}`)}
           >
             <div className="sb-contact-av-wrap" style={{ position: 'relative' }}>
               <MiniAvatar name={room.name} avatar={room.avatar} size={36} />
