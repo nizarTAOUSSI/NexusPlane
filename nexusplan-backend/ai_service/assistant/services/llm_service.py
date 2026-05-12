@@ -268,33 +268,45 @@ def _call_gemini(prompt: str, system_prompt: str) -> tuple[str, int, str]:
         )
 
     genai.configure(api_key=api_key)
-    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-preview-04-17")
+    configured = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    candidates = [configured]
+    for fallback in ("gemini-2.0-flash", "gemini-1.5-pro", "gemini-2.0-flash-lite"):
+        if fallback not in candidates:
+            candidates.append(fallback)
 
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        system_instruction=system_prompt,
-    )
+    last_exc: Exception | None = None
+    for model_name in candidates:
+        try:
+            model = genai.GenerativeModel(
+                model_name=model_name,
+                system_instruction=system_prompt,
+            )
+            response = model.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.4,
+                    top_p=0.95,
+                    max_output_tokens=2048,
+                ),
+            )
+            raw = response.text or ""
+            tokens_used = 0
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                meta = response.usage_metadata
+                tokens_used = getattr(meta, "total_token_count", 0) or (
+                    getattr(meta, "prompt_token_count", 0)
+                    + getattr(meta, "candidates_token_count", 0)
+                )
+            return raw, tokens_used, f"gemini/{model_name}"
+        except Exception as exc:
+            err_str = str(exc)
+            if "404" in err_str or "not found" in err_str.lower() or "deprecated" in err_str.lower():
+                logger.warning("[Gemini] model %r not available, trying next. Error: %s", model_name, exc)
+                last_exc = exc
+                continue
+            raise RuntimeError(f"Gemini API error: {exc}") from exc
 
-    response = model.generate_content(
-        prompt,
-        generation_config=genai.types.GenerationConfig(
-            temperature=0.4,
-            top_p=0.95,
-            max_output_tokens=2048,
-        ),
-    )
-
-    raw = response.text or ""
-
-    tokens_used = 0
-    if hasattr(response, "usage_metadata") and response.usage_metadata:
-        meta = response.usage_metadata
-        tokens_used = getattr(meta, "total_token_count", 0) or (
-            getattr(meta, "prompt_token_count", 0)
-            + getattr(meta, "candidates_token_count", 0)
-        )
-
-    return raw, tokens_used, f"gemini/{model_name}"
+    raise RuntimeError(f"All Gemini models unavailable: {last_exc}")
 
 
 def _call_openai_compatible(

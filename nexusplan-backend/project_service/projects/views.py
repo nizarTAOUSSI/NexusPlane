@@ -107,6 +107,59 @@ def _get_user_by_id(user_id: str) -> dict | None:
     return None
 
 
+def _batch_get_users(user_ids: list[str]) -> dict[str, dict]:
+    """
+    Resolve multiple user IDs at once.
+    First fills from Redis, then does ONE batch HTTP call for any missing IDs.
+    Returns {user_id: user_info_dict}.
+    """
+    result: dict[str, dict] = {}
+    missing: list[str] = []
+
+    # 1. Redis pass
+    try:
+        r = _redis()
+        for uid in user_ids:
+            cached = r.get(f"user:id:{uid}")
+            if cached:
+                result[uid] = json.loads(cached)
+            else:
+                missing.append(uid)
+    except Exception:
+        missing = [uid for uid in user_ids if uid not in result]
+
+    if not missing:
+        return result
+
+    # 2. Single batch HTTP call to auth_service for all missing IDs
+    try:
+        auth_url = getattr(django_settings, "AUTH_SERVICE_URL", "").rstrip("/")
+        if auth_url:
+            resp = http_requests.get(
+                f"{auth_url}/api/auth/lookup-by-ids/",
+                params={"ids": ",".join(missing)},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                fetched = resp.json()  # list of user dicts
+                try:
+                    r = _redis()
+                    for u in fetched:
+                        uid = str(u.get("id", ""))
+                        if uid:
+                            result[uid] = u
+                            r.set(f"user:id:{uid}", json.dumps(u), ex=86400)
+                except Exception:
+                    for u in fetched:
+                        uid = str(u.get("id", ""))
+                        if uid:
+                            result[uid] = u
+    except Exception:
+        pass
+
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Email helper functions
 # ---------------------------------------------------------------------------
@@ -801,9 +854,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project = self.get_object()
         memberships = project.memberships.all()
 
-        enriched = []
+        # Collect all user IDs, then batch-resolve in one shot
+        all_ids = [str(project.ownerId)] + [str(m.userId) for m in memberships]
+        user_map = _batch_get_users(all_ids)
 
-        owner_info = _get_user_by_id(str(project.ownerId)) or {}
+        enriched = []
+        owner_info = user_map.get(str(project.ownerId), {})
         enriched.append({
             "id":        f"owner-{project.ownerId}",
             "projectId": str(project.id),
@@ -816,7 +872,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         })
 
         for m in memberships:
-            user_info = _get_user_by_id(str(m.userId)) or {}
+            user_info = user_map.get(str(m.userId), {})
             enriched.append({
                 "id":        str(m.id),
                 "projectId": str(m.projectId_id),
@@ -1308,9 +1364,13 @@ class TeamViewSet(viewsets.ModelViewSet):
     def get_members(self, request: Request, pk=None) -> Response:  # noqa: ARG002
         team = self.get_object()
         memberships = team.memberships.all()
-        enriched = []
 
-        owner_info = _get_user_by_id(str(team.ownerId)) or {}
+        # Collect all user IDs, then batch-resolve in one shot
+        all_ids = [str(team.ownerId)] + [str(m.userId) for m in memberships]
+        user_map = _batch_get_users(all_ids)
+
+        enriched = []
+        owner_info = user_map.get(str(team.ownerId), {})
         enriched.append({
             "id":       f"owner-{team.ownerId}",
             "teamId":   str(team.id),
@@ -1325,7 +1385,7 @@ class TeamViewSet(viewsets.ModelViewSet):
         for m in memberships:
             if str(m.userId) == str(team.ownerId):
                 continue  # already included above
-            user_info = _get_user_by_id(str(m.userId)) or {}
+            user_info = user_map.get(str(m.userId), {})
             enriched.append({
                 "id":       str(m.id),
                 "teamId":   str(team.id),
