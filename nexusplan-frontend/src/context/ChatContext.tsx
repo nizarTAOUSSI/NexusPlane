@@ -110,6 +110,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Keep ref in sync so the socket handler always has the latest version
   useEffect(() => { updateRoomLastMsgRef.current = updateRoomLastMsg; }, [updateRoomLastMsg]);
 
+  // Auto-join ALL rooms whenever socket is connected + rooms are loaded.
+  // This ensures receiveMessage events are delivered even when ChatPage is not open.
+  // Also handles reconnects: `connected` flips false→true, re-running this effect.
+  useEffect(() => {
+    if (!connected || !roomsLoaded || !socketRef.current || !user?.id) return;
+    const sock = socketRef.current;
+    for (const room of roomsRef.current) {
+      sock.emit('joinRoom', {
+        type: room.type,
+        roomId: room.id,
+        targetUserId: room.id,
+        senderId: user.id,
+      });
+    }
+  }, [connected, roomsLoaded, user?.id]);
+
   // Socket lifecycle — runs for the full session, not just while ChatPage is open
   useEffect(() => {
     if (!user?.id || !token) return;
