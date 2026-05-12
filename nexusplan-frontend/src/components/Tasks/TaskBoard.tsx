@@ -113,8 +113,9 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
   });
 
   useEffect(() => {
-    realtime._publish({ isConnected, onlineUserIds });
-  }, [isConnected, onlineUserIds]);
+    const others = new Set([...onlineUserIds].filter(id => id !== user?.id));
+    realtime._publish({ isConnected, onlineUserIds: others });
+  }, [isConnected, onlineUserIds, user?.id]);
 
   useEffect(() => {
     realtime._publish({ userMap });

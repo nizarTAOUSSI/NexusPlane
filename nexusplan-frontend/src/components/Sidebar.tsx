@@ -85,7 +85,8 @@ const MiniAvatar: React.FC<{ name: string; avatar?: string; size?: number }> = (
 
 const OnlineUsersAvatars: React.FC = () => {
   const { isConnected, onlineUserIds, userMap } = useRealtime();
-  const others  = [...onlineUserIds];
+  const { user: currentUser } = useAuth();
+  const others  = [...onlineUserIds].filter(uid => uid !== currentUser?.id);
   const visible = others.slice(0, MAX_NAV_AV);
   const extra   = others.length - MAX_NAV_AV;
 
