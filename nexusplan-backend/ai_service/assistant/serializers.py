@@ -202,3 +202,53 @@ class CopilotOutputSerializer(serializers.Serializer):
     logId = serializers.UUIDField(
         help_text="UUID of the AIRequestLog record created for audit/cost-tracking.",
     )
+
+
+# ============================================================================
+# Dashboard Summary  (POST /api/ai/summarize-dashboard/)
+# ============================================================================
+
+class DashboardSummarizeInputSerializer(serializers.Serializer):
+    """Body expected by POST /api/ai/summarize-dashboard/"""
+
+    username = serializers.CharField(
+        max_length=150,
+        required=False,
+        default="User",
+        help_text="Display name of the user (used to personalize the summary).",
+    )
+    activeTasks = serializers.IntegerField(
+        min_value=0,
+        help_text="Count of tasks that are not in DONE status.",
+    )
+    overdueTasks = serializers.IntegerField(
+        min_value=0,
+        help_text="Count of tasks whose dueDate is in the past and status is not DONE.",
+    )
+    activeProjects = serializers.IntegerField(
+        min_value=0,
+        help_text="Count of projects with status ACTIVE.",
+    )
+    tasks = TaskContextSerializer(
+        many=True,
+        required=False,
+        default=list,
+        help_text="Sample of the user's tasks for richer AI context (max 20 used).",
+    )
+
+
+class DashboardSummarizeOutputSerializer(serializers.Serializer):
+    """Full response body returned by POST /api/ai/summarize-dashboard/"""
+
+    summary = serializers.CharField(
+        help_text="Brief 2-3 sentence personalized dashboard insight.",
+    )
+    tokensUsed = serializers.IntegerField(
+        help_text="Total LLM tokens consumed by this request.",
+    )
+    modelUsed = serializers.CharField(
+        help_text="Identifier of the LLM provider/model that responded.",
+    )
+    logId = serializers.UUIDField(
+        help_text="UUID of the AIRequestLog record created for audit/cost-tracking.",
+    )

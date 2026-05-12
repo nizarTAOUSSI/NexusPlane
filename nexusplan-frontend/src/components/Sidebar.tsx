@@ -415,6 +415,7 @@ const Sidebar: React.FC = () => {
           <AnimatePresence initial={false}>
             {!collapsed && (
               <motion.button className="sb-messages-add"
+              onClick={()=>{navigate("/chat")}}
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               >
                 <Plus size={13} strokeWidth={2.5} />

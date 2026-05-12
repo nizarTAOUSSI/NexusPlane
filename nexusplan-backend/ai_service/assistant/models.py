@@ -10,10 +10,11 @@ from django.db import models
 
 
 class PromptType(models.TextChoices):
-    TASK_GENERATION  = "TASK_GENERATION",  "Task Generation"
-    PROJECT_SUMMARY  = "PROJECT_SUMMARY",  "Project Summary"
-    TASK_DESCRIPTION = "TASK_DESCRIPTION", "Task Description"
-    GENERIC          = "GENERIC",          "Generic"
+    TASK_GENERATION   = "TASK_GENERATION",   "Task Generation"
+    PROJECT_SUMMARY   = "PROJECT_SUMMARY",   "Project Summary"
+    TASK_DESCRIPTION  = "TASK_DESCRIPTION",  "Task Description"
+    DASHBOARD_SUMMARY = "DASHBOARD_SUMMARY", "Dashboard Summary"
+    GENERIC           = "GENERIC",           "Generic"
 
 
 class AIRequestLog(models.Model):

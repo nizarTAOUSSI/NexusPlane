@@ -65,6 +65,29 @@ export interface CopilotResponse {
 }
 
 
+export interface DashboardTaskContext {
+  title?: string;
+  status?: string;
+  priority?: string;
+  dueDate?: string | null;
+}
+
+export interface DashboardSummarizePayload {
+  username?: string;
+  activeTasks: number;
+  overdueTasks: number;
+  activeProjects: number;
+  tasks?: DashboardTaskContext[];
+}
+
+export interface DashboardSummarizeResponse {
+  summary: string;
+  tokensUsed: number;
+  modelUsed: string;
+  logId: string;
+}
+
+
 const BASE = '/ai';
 
 export const aiService = {
@@ -94,6 +117,16 @@ export const aiService = {
   ): Promise<CopilotResponse> =>
     api
       .post<CopilotResponse>(`${BASE}/copilot/`, payload, {
+        headers: { 'X-User-Id': userId },
+      })
+      .then((r) => r.data),
+
+  summarizeDashboard: (
+    payload: DashboardSummarizePayload,
+    userId: string,
+  ): Promise<DashboardSummarizeResponse> =>
+    api
+      .post<DashboardSummarizeResponse>(`${BASE}/summarize-dashboard/`, payload, {
         headers: { 'X-User-Id': userId },
       })
       .then((r) => r.data),

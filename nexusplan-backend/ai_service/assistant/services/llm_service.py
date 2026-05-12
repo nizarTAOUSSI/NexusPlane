@@ -166,6 +166,20 @@ RULES:
 - Never fabricate project data. If something is unknown, say so clearly.
 """.strip()
 
+_DASHBOARD_SUMMARY_SYSTEM_PROMPT = """
+You are an AI assistant embedded in NexusPlan, a professional project management platform.
+Your task is to write a brief, personalized dashboard insight for a user reviewing their workload.
+
+RULES:
+- Write exactly 2-3 sentences. No more.
+- Be data-driven: reference the counts (active tasks, overdue tasks, active projects) directly.
+- End with one concrete, specific recommendation.
+- Respond in the same language as the task titles provided (French if titles are French, English if English).
+- Do NOT use markdown, bullet points, or headers. Plain prose only.
+- Do NOT address the user by "Dear" or start with "Hello". Be direct.
+- Be encouraging but honest — if there are overdue tasks, acknowledge the risk clearly.
+""".strip()
+
 
 # ============================================================================
 # Data classes
@@ -673,3 +687,51 @@ def copilot_chat(user_message: str, context_data: dict) -> TextGenerationResult:
     prompt = f"{context_block}\n\nUSER QUESTION:\n{user_message}"
 
     return _generate_text_with_fallbacks(prompt, _COPILOT_SYSTEM_PROMPT)
+
+
+
+def summarize_dashboard_tasks(
+    username: str,
+    tasks_data: list[dict],
+    active_tasks: int,
+    overdue_tasks: int,
+    active_projects: int,
+) -> TextGenerationResult:
+    """
+    Generate a brief, personalized dashboard summary for a user.
+
+    Args:
+        username:        Display name of the user.
+        tasks_data:      List of task dicts (title, status, priority, dueDate).
+                         Capped at 20 items to keep prompt size small.
+        active_tasks:    Pre-computed count of non-DONE tasks.
+        overdue_tasks:   Pre-computed count of past-due non-DONE tasks.
+        active_projects: Number of projects with status ACTIVE.
+
+    Returns:
+        TextGenerationResult with a 2-3 sentence prose summary.
+    """
+    logger.info(
+        "[LLM] summarize_dashboard_tasks | user=%s | active=%d | overdue=%d | projects=%d",
+        username, active_tasks, overdue_tasks, active_projects,
+    )
+
+    task_lines = []
+    for t in tasks_data[:20]:
+        due = t.get("dueDate") or "no due date"
+        task_lines.append(
+            f"  [{t.get('status','?')}] ({t.get('priority','?')}) "
+            f"{t.get('title','Untitled')} — due: {due}"
+        )
+    task_block = "\n".join(task_lines) if task_lines else "  (no tasks)"
+
+    prompt = (
+        f"USER: {username}\n"
+        f"ACTIVE TASKS (not done): {active_tasks}\n"
+        f"OVERDUE TASKS: {overdue_tasks}\n"
+        f"ACTIVE PROJECTS: {active_projects}\n\n"
+        f"TASK SAMPLE:\n{task_block}\n\n"
+        "Write a brief dashboard insight for this user."
+    )
+
+    return _generate_text_with_fallbacks(prompt, _DASHBOARD_SUMMARY_SYSTEM_PROMPT)

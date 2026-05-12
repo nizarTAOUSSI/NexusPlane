@@ -33,11 +33,15 @@ from .serializers import (
     # copilot
     CopilotInputSerializer,
     CopilotOutputSerializer,
+    # dashboard summary
+    DashboardSummarizeInputSerializer,
+    DashboardSummarizeOutputSerializer,
 )
 from .services.llm_service import (
     copilot_chat,
     generate_tasks_from_description,
     summarize_project_data,
+    summarize_dashboard_tasks,
 )
 
 logger = logging.getLogger(__name__)
@@ -446,6 +450,94 @@ class AssistantViewSet(viewsets.GenericViewSet):
         # ── 5. Serialize & return ──────────────────────────────────────────
         out = CopilotOutputSerializer({
             "reply":      result.text,
+            "tokensUsed": result.tokens_used,
+            "modelUsed":  result.model_used,
+            "logId":      str(log.id),
+        })
+        return Response(out.data, status=status.HTTP_200_OK)
+
+    # =========================================================================
+    # POST /api/ai/summarize-dashboard/
+    # =========================================================================
+
+    @extend_schema(
+        summary="Generate a personalized AI insight for the user's dashboard",
+        description=(
+            "Accepts a snapshot of the user's task and project KPIs, then returns "
+            "a concise 2-3 sentence AI-generated insight highlighting workload health, "
+            "overdue risks, and a concrete next-step recommendation.\n\n"
+            "**Authentication**: The API Gateway injects `X-User-Id` automatically."
+        ),
+        request=DashboardSummarizeInputSerializer,
+        responses={
+            200: DashboardSummarizeOutputSerializer,
+            400: OpenApiResponse(description="Validation error."),
+            401: OpenApiResponse(description="Missing X-User-Id header."),
+            502: OpenApiResponse(description="All LLM providers failed."),
+        },
+        tags=_AI_TAG,
+    )
+    @action(detail=False, methods=["post"], url_path="summarize-dashboard")
+    def summarize_dashboard(self, request: Request) -> Response:
+        """
+        Generate a brief AI dashboard summary for the requesting user.
+
+        Flow:
+          1. Validate input (KPI counts + optional task sample).
+          2. Resolve the requesting user from the X-User-Id gateway header.
+          3. Call summarize_dashboard_tasks (Gemini → Grok → OpenRouter fallback).
+          4. Persist an AIRequestLog for cost-tracking and audit.
+          5. Return the prose summary to the frontend.
+        """
+
+        # ── 1. Validate input ──────────────────────────────────────────────
+        in_serializer = DashboardSummarizeInputSerializer(data=request.data)
+        if not in_serializer.is_valid():
+            return Response(in_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        username        = in_serializer.validated_data.get("username", "User")
+        active_tasks    = in_serializer.validated_data["activeTasks"]
+        overdue_tasks   = in_serializer.validated_data["overdueTasks"]
+        active_projects = in_serializer.validated_data["activeProjects"]
+        tasks           = in_serializer.validated_data.get("tasks", [])
+
+        # ── 2. Resolve user ────────────────────────────────────────────────
+        user_id, err = _require_user_id(request)
+        if err:
+            return err
+
+        # ── 3. Call LLM ────────────────────────────────────────────────────
+        try:
+            result = summarize_dashboard_tasks(
+                username=username,
+                tasks_data=[dict(t) for t in tasks],
+                active_tasks=active_tasks,
+                overdue_tasks=overdue_tasks,
+                active_projects=active_projects,
+            )
+        except RuntimeError as exc:
+            logger.error(
+                "summarize_dashboard failed | user=%s | error=%s", user_id, exc
+            )
+            return Response(
+                {"detail": f"AI provider error: {exc}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        # ── 4. Persist audit log ───────────────────────────────────────────
+        log = AIRequestLog.objects.create(
+            userId     = user_id,
+            promptType = PromptType.DASHBOARD_SUMMARY,
+            tokensUsed = result.tokens_used,
+        )
+        logger.info(
+            "AIRequestLog created | id=%s | user=%s | tokens=%d | type=DASHBOARD_SUMMARY",
+            log.id, user_id, result.tokens_used,
+        )
+
+        # ── 5. Serialize & return ──────────────────────────────────────────
+        out = DashboardSummarizeOutputSerializer({
+            "summary":    result.text,
             "tokensUsed": result.tokens_used,
             "modelUsed":  result.model_used,
             "logId":      str(log.id),
