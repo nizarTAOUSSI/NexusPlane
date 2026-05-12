@@ -268,9 +268,15 @@ def _call_gemini(prompt: str, system_prompt: str) -> tuple[str, int, str]:
         )
 
     genai.configure(api_key=api_key)
-    configured = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    configured = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
     candidates = [configured]
-    for fallback in ("gemini-2.0-flash", "gemini-1.5-pro", "gemini-2.0-flash-lite"):
+    for fallback in (
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-pro",
+        "gemini-2.0-flash-lite",
+        "gemini-2.0-flash",
+    ):
         if fallback not in candidates:
             candidates.append(fallback)
 
@@ -300,8 +306,16 @@ def _call_gemini(prompt: str, system_prompt: str) -> tuple[str, int, str]:
             return raw, tokens_used, f"gemini/{model_name}"
         except Exception as exc:
             err_str = str(exc)
-            if "404" in err_str or "not found" in err_str.lower() or "deprecated" in err_str.lower():
-                logger.warning("[Gemini] model %r not available, trying next. Error: %s", model_name, exc)
+            retryable = (
+                "404" in err_str
+                or "not found" in err_str.lower()
+                or "deprecated" in err_str.lower()
+                or "429" in err_str
+                or "quota" in err_str.lower()
+                or "rate" in err_str.lower()
+            )
+            if retryable:
+                logger.warning("[Gemini] model %r unavailable/quota, trying next. Error: %s", model_name, exc)
                 last_exc = exc
                 continue
             raise RuntimeError(f"Gemini API error: {exc}") from exc
@@ -383,7 +397,7 @@ def _call_openrouter(prompt: str, system_prompt: str) -> tuple[str, int, str]:
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not set in the environment.")
     model = os.environ.get(
-        "OPENROUTER_MODEL", "meta-llama/llama-3.1-8b-instruct:free"
+        "OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"
     )
     return _call_openai_compatible(
         prompt, system_prompt, api_key, "https://openrouter.ai/api/v1", model
