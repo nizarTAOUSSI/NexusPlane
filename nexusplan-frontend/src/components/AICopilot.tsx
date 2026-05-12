@@ -1,6 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Sparkles, Loader2, Bot, User,Minimize2, Maximize2, RefreshCw} from 'lucide-react';
+import { X, Send, Sparkles, Loader2, Bot, User, Minimize2, Maximize2, RefreshCw, Copy, Check, CornerDownLeft } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { aiService, type CopilotPayload, type CopilotResponse } from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
 import { type Task } from '../types/task';
@@ -50,7 +51,10 @@ const AICopilot: React.FC<AICopilotProps> = ({
     }
   ]);
   const [loading, setLoading] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -69,8 +73,10 @@ const AICopilot: React.FC<AICopilotProps> = ({
       timestamp: Date.now(),
     };
 
+    const currentReply = replyingTo;
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setReplyingTo(null);
 
     if (_GREETING_RE.test(userMsg.content)) {
       setMessages(prev => [...prev, {
@@ -96,6 +102,12 @@ const AICopilot: React.FC<AICopilotProps> = ({
           projectId,
           projectName,
           ...(conversationHistory.length > 0 && { history: conversationHistory }),
+          ...(currentReply && {
+            referencedMessage: {
+              role: currentReply.role,
+              content: currentReply.content.slice(0, 800),
+            },
+          }),
           task: currentTask ? {
             title: currentTask.title,
             description: currentTask.description,
@@ -133,7 +145,20 @@ const AICopilot: React.FC<AICopilotProps> = ({
     }
   };
 
+  const handleCopy = useCallback((msg: Message) => {
+    navigator.clipboard.writeText(msg.content).then(() => {
+      setCopiedId(msg.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }, []);
+
+  const handleReply = useCallback((msg: Message) => {
+    setReplyingTo(msg);
+    inputRef.current?.focus();
+  }, []);
+
   const clearChat = () => {
+    setReplyingTo(null);
     setMessages([
       {
         id: 'welcome',
@@ -198,8 +223,38 @@ const AICopilot: React.FC<AICopilotProps> = ({
                       <div className="copilot-msg-avatar">
                         {msg.role === 'assistant' ? <Bot size={14} /> : <User size={14} />}
                       </div>
-                      <div className="copilot-msg-bubble">
-                        <div className="copilot-msg-content">{msg.content}</div>
+                      <div className="copilot-msg-bubble-wrap">
+                        <div className="copilot-msg-bubble">
+                          {msg.role === 'assistant' ? (
+                            <div className="copilot-msg-content copilot-msg-content--md">
+                              <ReactMarkdown>{msg.content}</ReactMarkdown>
+                            </div>
+                          ) : (
+                            <div className="copilot-msg-content">{msg.content}</div>
+                          )}
+                        </div>
+                        {msg.role === 'assistant' && (
+                          <div className="copilot-msg-actions">
+                            <button
+                              className="copilot-msg-action-btn"
+                              title="Copy response"
+                              onClick={() => handleCopy(msg)}
+                            >
+                              {copiedId === msg.id
+                                ? <Check size={12} />
+                                : <Copy size={12} />}
+                              <span>{copiedId === msg.id ? 'Copied' : 'Copy'}</span>
+                            </button>
+                            <button
+                              className="copilot-msg-action-btn"
+                              title="Use this response as context"
+                              onClick={() => handleReply(msg)}
+                            >
+                              <CornerDownLeft size={12} />
+                              <span>Reply</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -216,8 +271,27 @@ const AICopilot: React.FC<AICopilotProps> = ({
                   )}
                 </div>
 
+                {replyingTo && (
+                  <div className="copilot-reply-banner">
+                    <div className="copilot-reply-banner-content">
+                      <CornerDownLeft size={12} className="copilot-reply-banner-icon" />
+                      <span className="copilot-reply-banner-text">
+                        {replyingTo.content.slice(0, 80)}{replyingTo.content.length > 80 ? '…' : ''}
+                      </span>
+                    </div>
+                    <button
+                      className="copilot-reply-banner-close"
+                      onClick={() => setReplyingTo(null)}
+                      title="Cancel reply"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
+
                 <form className="copilot-input-area" onSubmit={handleSend}>
                   <input
+                    ref={inputRef}
                     type="text"
                     className="copilot-input"
                     placeholder="Ask anything about your project…"
