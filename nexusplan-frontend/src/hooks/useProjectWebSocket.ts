@@ -101,6 +101,8 @@ export function useProjectWebSocket({
 
         if (event.type === 'user_connected' && event.userId) {
           setOnlineUserIds(prev => new Set([...prev, event.userId!]));
+        } else if (event.type === ('presence_list' as any) && Array.isArray((event as any).userIds)) {
+          setOnlineUserIds(prev => new Set([...prev, ...(event as any).userIds as string[]]));
         } else if (event.type === 'user_disconnected' && event.userId) {
           setOnlineUserIds(prev => {
             const next = new Set(prev);

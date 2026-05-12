@@ -35,6 +35,8 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 
 logger = logging.getLogger(__name__)
 
+_presence: dict[str, set[str]] = {}
+
 
 ALLOWED_ACTIONS = {
     "task_created",
@@ -90,6 +92,16 @@ class BoardConsumer(AsyncWebsocketConsumer):
         await self.channel_layer.group_add(self.group_name, self.channel_name)
         await self.accept()
 
+        existing = set(_presence.get(self.group_name, set()))
+        _presence.setdefault(self.group_name, set()).add(str(self.user_id))
+
+        if existing:
+            await self.send(text_data=json.dumps({
+                "type":      "presence_list",
+                "userIds":   list(existing),
+                "timestamp": _now(),
+            }))
+
         logger.info(
             "WS connected: user=%s  project=%s  channel=%s",
             self.user_id, self.project_id, self.channel_name,
@@ -111,6 +123,12 @@ class BoardConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code: int):
         """Remove this channel from the project group on disconnect."""
         if hasattr(self, "group_name"):
+            group_presence = _presence.get(self.group_name)
+            if group_presence:
+                group_presence.discard(str(self.user_id))
+                if not group_presence:
+                    _presence.pop(self.group_name, None)
+
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
             await self.channel_layer.group_send(
