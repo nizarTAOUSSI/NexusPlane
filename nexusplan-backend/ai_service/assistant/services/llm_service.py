@@ -270,13 +270,7 @@ def _call_gemini(prompt: str, system_prompt: str) -> tuple[str, int, str]:
     genai.configure(api_key=api_key)
     configured = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash")
     candidates = [configured]
-    for fallback in (
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
-        "gemini-1.5-pro",
-        "gemini-2.0-flash-lite",
-        "gemini-2.0-flash",
-    ):
+    for fallback in ("gemini-1.5-flash", "gemini-2.0-flash-lite"):
         if fallback not in candidates:
             candidates.append(fallback)
 
@@ -451,29 +445,27 @@ def _generate_text_with_fallbacks(prompt: str, system_prompt: str) -> TextGenera
     """
     errors: list[str] = []
 
-    # ── 1. Gemini ──────────────────────────────────────────────────────────
+    # ── 1. Groq ────────────────────────────────────────────────────────────
+    # Try Groq first — it's the most reliable free provider right now.
+    # Gemini free-tier quota is often exhausted; we try it second as a bonus.
     try:
-        logger.info("[LLM] Attempting Gemini (primary)...")
+        logger.info("[LLM] Attempting Groq (primary)...")
+        raw, tokens, model_label = _call_grok(prompt, system_prompt)
+        logger.info("[LLM] Groq succeeded | tokens=%d | model=%s", tokens, model_label)
+        return TextGenerationResult(text=raw, tokens_used=tokens, model_used=model_label)
+    except Exception as exc:
+        logger.warning("[LLM] ⚠ Groq FAILED — falling back to Gemini. Error: %s", exc)
+        errors.append(f"Groq: {exc}")
+
+    # ── 2. Gemini ──────────────────────────────────────────────────────────
+    try:
+        logger.info("[LLM] Attempting Gemini (fallback 1)...")
         raw, tokens, model_label = _call_gemini(prompt, system_prompt)
         logger.info("[LLM] Gemini succeeded | tokens=%d | model=%s", tokens, model_label)
         return TextGenerationResult(text=raw, tokens_used=tokens, model_used=model_label)
     except Exception as exc:
-        logger.warning(
-            "[LLM] ⚠ Gemini FAILED — falling back to Grok. Error: %s", exc
-        )
+        logger.warning("[LLM] ⚠ Gemini FAILED — falling back to OpenRouter. Error: %s", exc)
         errors.append(f"Gemini: {exc}")
-
-    # ── 2. Grok (xAI) ─────────────────────────────────────────────────────
-    try:
-        logger.info("[LLM] Attempting Grok/xAI (fallback 1)...")
-        raw, tokens, model_label = _call_grok(prompt, system_prompt)
-        logger.info("[LLM] Grok succeeded | tokens=%d | model=%s", tokens, model_label)
-        return TextGenerationResult(text=raw, tokens_used=tokens, model_used=model_label)
-    except Exception as exc:
-        logger.warning(
-            "[LLM] ⚠ Grok FAILED — falling back to OpenRouter. Error: %s", exc
-        )
-        errors.append(f"Grok: {exc}")
 
     # ── 3. OpenRouter ──────────────────────────────────────────────────────
     try:
