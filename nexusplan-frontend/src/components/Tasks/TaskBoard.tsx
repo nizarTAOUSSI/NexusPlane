@@ -117,6 +117,10 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
   }, [isConnected, onlineUserIds]);
 
   useEffect(() => {
+    realtime._publish({ userMap });
+  }, [userMap]);
+
+  useEffect(() => {
     realtime._registerSend(send);
   }, [send]);
 
