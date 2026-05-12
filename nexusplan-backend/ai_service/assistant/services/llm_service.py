@@ -381,27 +381,56 @@ def _call_openai_compatible(
 
 
 def _call_grok(prompt: str, system_prompt: str) -> tuple[str, int, str]:
-    """Call the xAI Grok API (OpenAI-compatible)."""
-    api_key = os.environ.get("GROK_API_KEY")
+    """Call the Groq API (OpenAI-compatible, very fast free inference)."""
+    api_key = os.environ.get("GROQ_API_KEY") or os.environ.get("GROK_API_KEY")
     if not api_key:
-        raise RuntimeError("GROK_API_KEY is not set in the environment.")
-    model = os.environ.get("GROK_MODEL", "grok-3-mini")
+        raise RuntimeError("GROQ_API_KEY is not set in the environment.")
+    model = os.environ.get("GROQ_MODEL", os.environ.get("GROK_MODEL", "llama-3.3-70b-versatile"))
     return _call_openai_compatible(
-        prompt, system_prompt, api_key, "https://api.x.ai/v1", model
+        prompt, system_prompt, api_key, "https://api.groq.com/openai/v1", model
     )
 
 
 def _call_openrouter(prompt: str, system_prompt: str) -> tuple[str, int, str]:
-    """Call the OpenRouter API (OpenAI-compatible, ultimate fallback)."""
+    """Call the OpenRouter API (OpenAI-compatible, ultimate fallback).
+    Tries a list of free models in order until one succeeds.
+    """
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY is not set in the environment.")
-    model = os.environ.get(
-        "OPENROUTER_MODEL", "mistralai/mistral-7b-instruct:free"
-    )
-    return _call_openai_compatible(
-        prompt, system_prompt, api_key, "https://openrouter.ai/api/v1", model
-    )
+
+    configured = os.environ.get("OPENROUTER_MODEL", "")
+    candidates = []
+    if configured:
+        candidates.append(configured)
+    for fallback in (
+        "qwen/qwen3-8b:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-3-1b-it:free",
+        "meta-llama/llama-4-scout:free",
+        "microsoft/phi-3-mini-128k-instruct:free",
+    ):
+        if fallback not in candidates:
+            candidates.append(fallback)
+
+    last_exc: Exception | None = None
+    for model in candidates:
+        try:
+            return _call_openai_compatible(
+                prompt, system_prompt, api_key, "https://openrouter.ai/api/v1", model
+            )
+        except Exception as exc:
+            err_str = str(exc)
+            retryable = any(
+                x in err_str for x in ("404", "429", "rate", "limit", "unavailable", "No endpoints")
+            )
+            if retryable:
+                logger.warning("[OpenRouter] model %r unavailable, trying next. Error: %s", model, exc)
+                last_exc = exc
+                continue
+            raise RuntimeError(f"OpenRouter error: {exc}") from exc
+
+    raise RuntimeError(f"All OpenRouter models unavailable: {last_exc}")
 
 
 # ============================================================================
