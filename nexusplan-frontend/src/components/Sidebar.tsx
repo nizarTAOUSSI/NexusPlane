@@ -105,7 +105,7 @@ const OnlineUsersAvatars: React.FC = () => {
           return (
             <div
               key={uid}
-              className="nb-av nb-av--live rounded-full"
+              className="nb-av nb-av--live"
               style={{ background: color, zIndex: MAX_NAV_AV - i }}
               title={meta?.username || meta?.email || uid}
             >
