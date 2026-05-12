@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useParams, useNavigate } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import { useChatContext, type ChatRoom } from '../context/ChatContext';
+import type { TeamMember } from '../teamsApi';
 
 interface Message {
   id: string;
@@ -56,6 +58,75 @@ const StatusTick: React.FC<{ status?: 'sent' | 'delivered' | 'read' }> = ({ stat
   );
 };
 
+interface FoundUser {
+  id: string;
+  username: string;
+  email: string;
+  avatar: string | null;
+}
+
+const GroupAvatarCluster: React.FC<{
+  members: TeamMember[];
+  totalCount?: number;
+  size?: number;
+}> = ({ members, totalCount, size = 42 }) => {
+  const total = totalCount ?? members.length;
+  const hasExtra = total > 3;
+  const visible = members.slice(0, hasExtra ? 2 : Math.min(total, 3));
+  const extra = total - 3;
+  const mini = Math.floor(size * 0.57);
+
+  const pos2: React.CSSProperties[] = [
+    { top: 0, left: 0 },
+    { bottom: 0, right: 0 },
+  ];
+  const pos3: React.CSSProperties[] = [
+    { top: 0, left: 0 },
+    { top: 0, right: 0 },
+    { bottom: 0, left: '50%', transform: 'translateX(-50%)' },
+  ];
+
+  if (visible.length === 0) return <AvatarChip name="?" size={size} />;
+
+  if (visible.length === 1 && !hasExtra) {
+    const m = visible[0];
+    const name = m.username || m.email || '?';
+    return m.avatar
+      ? <img src={m.avatar} alt={name} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+      : <AvatarChip name={name} size={size} color={colorFor(m.userId)} />;
+  }
+
+  const positions = hasExtra ? pos3 : (visible.length === 2 ? pos2 : pos3);
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      {visible.map((m, i) => {
+        const name = m.username || m.email || '?';
+        return (
+          <div key={m.userId} style={{ position: 'absolute', ...positions[i], lineHeight: 0 }}>
+            {m.avatar
+              ? <img src={m.avatar} alt={name} style={{ width: mini, height: mini, borderRadius: '50%', objectFit: 'cover', border: '1.5px solid var(--surface)', display: 'block' }} />
+              : <AvatarChip name={name} size={mini} color={colorFor(m.userId)} />
+            }
+          </div>
+        );
+      })}
+      {hasExtra && (
+        <div style={{
+          position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+          width: mini, height: mini, borderRadius: '50%',
+          background: 'var(--accent)', color: '#fff',
+          fontSize: mini * 0.35, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '1.5px solid var(--surface)', zIndex: 3,
+        }}>
+          +{extra > 9 ? '9' : extra}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ChatPage: React.FC = () => {
   const { user } = useAuth() as any;
   const { roomId: urlRoomId } = useParams<{ roomId: string }>();
@@ -76,6 +147,12 @@ const ChatPage: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const [showPanel, setShowPanel] = useState(true);
+
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [newChatEmail, setNewChatEmail] = useState('');
+  const [newChatSearching, setNewChatSearching] = useState(false);
+  const [newChatUser, setNewChatUser] = useState<FoundUser | null>(null);
+  const [newChatError, setNewChatError] = useState<string | null>(null);
 
   const bottomRef   = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -263,6 +340,58 @@ const ChatPage: React.FC = () => {
     r.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const openNewChatModal = () => {
+    setShowNewChatModal(true);
+    setNewChatEmail('');
+    setNewChatUser(null);
+    setNewChatError(null);
+  };
+
+  const handleEmailSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const email = newChatEmail.trim();
+    if (!email) return;
+    setNewChatSearching(true);
+    setNewChatUser(null);
+    setNewChatError(null);
+    try {
+      const res = await api.get('auth/lookup/', { params: { email } });
+      const found = res.data as FoundUser;
+      if (found.id === user?.id) {
+        setNewChatError("You can't start a conversation with yourself.");
+      } else {
+        setNewChatUser(found);
+      }
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        setNewChatError('No user found with this email address.');
+      } else {
+        setNewChatError('Something went wrong. Please try again.');
+      }
+    } finally {
+      setNewChatSearching(false);
+    }
+  };
+
+  const startDMFromModal = (foundUser: FoundUser) => {
+    const existing = rooms.find(r => r.type === 'dm' && r.id === foundUser.id);
+    if (existing) {
+      setShowNewChatModal(false);
+      navigate(`/chat/${existing.id}`);
+      return;
+    }
+    const newRoom: ChatRoom = {
+      id: foundUser.id,
+      name: foundUser.username || foundUser.email,
+      type: 'dm',
+      avatar: foundUser.avatar || undefined,
+      online: false,
+    };
+    setRooms(prev => [newRoom, ...prev]);
+    setShowNewChatModal(false);
+    navigate(`/chat/${foundUser.id}`);
+  };
+
   if (!roomsLoaded) {
     return <div className="chat-page" style={{ alignItems: 'center', justifyContent: 'center' }}>Loading chats...</div>;
   }
@@ -275,7 +404,7 @@ const ChatPage: React.FC = () => {
             <h2 className="chat-sidebar-title">Messages</h2>
             <p className="chat-sidebar-sub">Team conversations</p>
           </div>
-          <button className="chat-compose-btn" title="New chat">
+          <button className="chat-compose-btn" title="New chat" onClick={openNewChatModal}>
             <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
               <path d="M12 5v14M5 12h14"/>
             </svg>
@@ -303,8 +432,17 @@ const ChatPage: React.FC = () => {
               onClick={() => navigate(`/chat/${room.id}`)}
             >
               <div className="chat-room-avatar-wrap">
-                <AvatarChip name={room.name} size={42} color={colorFor(room.id)} />
-                {room.online && <span className="chat-room-online-dot" />}
+                {room.type === 'dm'
+                  ? (room.avatar
+                      ? <img src={room.avatar} alt={room.name} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      : <AvatarChip name={room.name} size={42} color={colorFor(room.id)} />
+                    )
+                  : (roomMembers[room.id]?.length
+                      ? <GroupAvatarCluster members={roomMembers[room.id]} totalCount={room.members} size={42} />
+                      : <AvatarChip name={room.name} size={42} color={colorFor(room.id)} />
+                    )
+                }
+                {/* {room.online && <span className="chat-room-online-dot" />} */}
               </div>
               <div className="chat-room-info">
                 <div className="chat-room-name-row">
@@ -326,14 +464,17 @@ const ChatPage: React.FC = () => {
           <div className="chat-main">
         <div className="chat-topbar">
           <div className="chat-topbar-left">
-            <AvatarChip name={activeRoom.name} size={40} color={colorFor(activeRoom.id)} />
+            {activeRoom.type === 'dm' && activeRoom.avatar
+              ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+              : <AvatarChip name={activeRoom.name} size={40} color={colorFor(activeRoom.id)} />
+            }
             <div>
               <p className="chat-topbar-name">{activeRoom.name}</p>
-              <p className="chat-topbar-meta">
+              {/* <p className="chat-topbar-meta">
                 {activeRoom.type === 'group'
                   ? `${activeRoom.members ?? 0} members`
                   : connected ? 'Online' : 'Offline'}
-              </p>
+              </p> */}
             </div>
           </div>
           <div className="chat-topbar-actions">
@@ -376,12 +517,23 @@ const ChatPage: React.FC = () => {
               }
             }
 
+            let senderAvatar: string | null = null;
+            const dmRoom = rooms.find(r => r.type === 'dm' && r.id === msg.senderId);
+            if (dmRoom?.avatar) {
+              senderAvatar = dmRoom.avatar;
+            } else if (activeRoom?.type === 'group') {
+              senderAvatar = (roomMembers[activeRoom.id] ?? []).find(m => m.userId === msg.senderId)?.avatar ?? null;
+            }
+
             return (
               <div key={msg.id} className={`chat-msg-row${isMe ? ' chat-msg-row--me' : ''}`}>
                 {!isMe && (
                   <div className="chat-msg-avatar">
                     {showAvatar
-                      ? <AvatarChip name={displayName || msg.senderId} size={32} color={colorFor(msg.senderId)} />
+                      ? (senderAvatar
+                          ? <img src={senderAvatar} alt={displayName || msg.senderId} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                          : <AvatarChip name={displayName || msg.senderId} size={32} color={colorFor(msg.senderId)} />
+                        )
                       : <div style={{ width: 32 }} />
                     }
                   </div>
@@ -391,7 +543,9 @@ const ChatPage: React.FC = () => {
                     <p className="chat-msg-sender">{displayName || msg.senderId}</p>
                   )}
                   <div className={`chat-bubble${isMe ? ' chat-bubble--me' : ''}`}>
-                    <p className="chat-bubble-text">{msg.message}</p>
+                    <div className="chat-bubble-text">
+                      <ReactMarkdown>{msg.message}</ReactMarkdown>
+                    </div>
                   </div>
                   <p className="chat-msg-time">
                     {fmtTime(msg.timestamp)}
@@ -460,18 +614,21 @@ const ChatPage: React.FC = () => {
 
       {showPanel && <aside className="chat-right-panel">
         <div className="chat-right-header">
-          <AvatarChip name={activeRoom.name} size={52} color={colorFor(activeRoom.id)} />
+          {activeRoom.type === 'dm' && activeRoom.avatar
+            ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
+            : <AvatarChip name={activeRoom.name} size={52} color={colorFor(activeRoom.id)} />
+          }
           <p className="chat-right-name">{activeRoom.name}</p>
           <p className="chat-right-type">
             {activeRoom.type === 'group' ? `Group · ${activeRoom.members} members` : 'Direct Message'}
           </p>
         </div>
 
+        {activeRoom.type === 'group' && (
         <div className="chat-right-section">
           <p className="chat-right-section-title">Members</p>
           <div className="chat-right-members">
-            {activeRoom.type === 'group'
-              ? (roomMembers[activeRoom.id] || []).map(m => {
+            {(roomMembers[activeRoom.id] || []).map(m => {
                   const name = m.username || m.email || 'Unknown';
                   return (
                     <div key={m.userId} className="chat-right-member">
@@ -483,23 +640,13 @@ const ChatPage: React.FC = () => {
                       <span className="chat-right-member-dot" />
                     </div>
                   );
-                })
-              : (
-                <div className="chat-right-member">
-                  {activeRoom.avatar
-                    ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                    : <AvatarChip name={activeRoom.name} size={30} color={colorFor(activeRoom.id)} />
-                  }
-                  <span className="chat-right-member-name">{activeRoom.name}</span>
-                  <span className="chat-right-member-dot" />
-                </div>
-              )
-            }
-            {activeRoom.type === 'group' && !(roomMembers[activeRoom.id]?.length) && (
+                })}
+            {!(roomMembers[activeRoom.id]?.length) && (
               <p style={{ fontSize: 12, opacity: 0.45, padding: '4px 0' }}>Loading members…</p>
             )}
           </div>
         </div>
+        )}
 
         {/* <div className="chat-right-section">
           <p className="chat-right-section-title">Shared Files</p>
@@ -521,6 +668,61 @@ const ChatPage: React.FC = () => {
         </>
       ) : (
         <div className="chat-main chat-empty">Select a conversation to start chatting</div>
+      )}
+
+      {showNewChatModal && (
+        <div className="chat-modal-overlay" onClick={() => setShowNewChatModal(false)}>
+          <div className="chat-modal" onClick={e => e.stopPropagation()}>
+            <div className="chat-modal-header">
+              <h3 className="chat-modal-title">New Direct Message</h3>
+              <button className="chat-modal-close" onClick={() => setShowNewChatModal(false)}>
+                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                  <path d="M18 6 6 18M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <div className="chat-modal-body">
+              <form className="chat-modal-form" onSubmit={handleEmailSearch}>
+                <input
+                  className="chat-modal-input"
+                  type="email"
+                  placeholder="Search by email address…"
+                  value={newChatEmail}
+                  onChange={e => { setNewChatEmail(e.target.value); setNewChatUser(null); setNewChatError(null); }}
+                  autoFocus
+                />
+                <button type="submit" className="chat-modal-search-btn" disabled={newChatSearching || !newChatEmail.trim()}>
+                  {newChatSearching ? '…' : 'Search'}
+                </button>
+              </form>
+
+              {newChatError && (
+                <div className="chat-modal-error">
+                  <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+                  </svg>
+                  {newChatError}
+                </div>
+              )}
+
+              {newChatUser && (
+                <div className="chat-modal-result">
+                  {newChatUser.avatar
+                    ? <img src={newChatUser.avatar} alt={newChatUser.username} className="chat-modal-result-avatar" />
+                    : <AvatarChip name={newChatUser.username || newChatUser.email} size={44} color={colorFor(newChatUser.id)} />
+                  }
+                  <div className="chat-modal-result-info">
+                    <p className="chat-modal-result-name">{newChatUser.username}</p>
+                    <p className="chat-modal-result-email">{newChatUser.email}</p>
+                  </div>
+                  <button className="chat-modal-start-btn" onClick={() => startDMFromModal(newChatUser)}>
+                    Start conversation
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

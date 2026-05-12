@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Sparkles, Loader2, Bot, User, Minimize2, Maximize2, RefreshCw, Copy, Check, CornerDownLeft } from 'lucide-react';
+import { X, Send, Loader2, User, Minimize2, Maximize2, RefreshCw, Copy, Check, CornerDownLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { aiService, type CopilotPayload, type CopilotResponse } from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
 import { type Task } from '../types/task';
+import logo from'../assets/logoNexus.png';
 
 const _GREETING_RE = /^\s*(hi+|hey+|hello+|howdy|sup|yo+|salut|bonjour|bonsoir|bonne\s*journ[ée]e?|coucou|salam|مرحبا|hola|ciao|ola|greetings|good\s*(morning|afternoon|evening|day))\W*\s*$/i;
 
@@ -168,22 +169,41 @@ const AICopilot: React.FC<AICopilotProps> = ({
       }
     ]);
   };
-
   return (
     <div className="copilot-container">
       <AnimatePresence>
         {!isOpen && (
           <motion.button
-            className="copilot-trigger"
+            className="copilot-fab"
             onClick={() => setIsOpen(true)}
-            initial={{ scale: 0, opacity: 0 }}
+            initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0, opacity: 0 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            exit={{ scale: 0.5, opacity: 0 }}
+            whileHover="hover"
+            whileTap={{ scale: 0.9 }}
           >
-            <Sparkles size={24} />
-            <span className="copilot-trigger-badge">Copilot</span>
+            <motion.span
+              className="copilot-fab-glow"
+              variants={{ hover: { opacity: 0.95, scale: 1.35 } }}
+              initial={{ opacity: 0.6 }}
+              transition={{ duration: 0.35 }}
+            />
+            <span className="copilot-fab-ring" />
+            <motion.span
+              className="copilot-fab-core"
+              variants={{ hover: { scale: 1.08 } }}
+              transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+            >
+              <img src={logo} alt="NexusPlan Copilot" className="copilot-fab-logo" />
+            </motion.span>
+            <motion.span
+              className="copilot-fab-tooltip"
+              variants={{ hover: { opacity: 1, x: 0 } }}
+              initial={{ opacity: 0, x: 10 }}
+              transition={{ duration: 0.18 }}
+            >
+              Ask Nexus
+            </motion.span>
           </motion.button>
         )}
       </AnimatePresence>
@@ -198,12 +218,12 @@ const AICopilot: React.FC<AICopilotProps> = ({
           >
             <div className="copilot-header">
               <div className="copilot-header-left">
-                <div className="copilot-bot-icon">
-                  <Sparkles size={16} />
+                <div className="copilot-header-icon">
+                  <img src={logo} alt="NexusPlan" className="copilot-header-icon-img" />
                 </div>
                 <div>
                   <h3 className="copilot-title">NexusPlan Copilot</h3>
-                  <span className="copilot-status">Online</span>
+                  <span className="copilot-status">Online · AI Powered</span>
                 </div>
               </div>
               <div className="copilot-header-actions">
@@ -221,7 +241,9 @@ const AICopilot: React.FC<AICopilotProps> = ({
                   {messages.map((msg) => (
                     <div key={msg.id} className={`copilot-msg-row copilot-msg-row--${msg.role}`}>
                       <div className="copilot-msg-avatar">
-                        {msg.role === 'assistant' ? <Bot size={14} /> : <User size={14} />}
+                        {msg.role === 'assistant'
+                          ? <img src={logo} alt="Copilot" className="copilot-avatar-logo" />
+                          : <User size={14} />}
                       </div>
                       <div className="copilot-msg-bubble-wrap">
                         <div className="copilot-msg-bubble">
@@ -261,7 +283,7 @@ const AICopilot: React.FC<AICopilotProps> = ({
                   {loading && (
                     <div className="copilot-msg-row copilot-msg-row--assistant">
                       <div className="copilot-msg-avatar">
-                        <Bot size={14} />
+                        <img src={logo} alt="Copilot" className="copilot-avatar-logo" />
                       </div>
                       <div className="copilot-msg-bubble copilot-msg-bubble--loading">
                         <Loader2 size={16} className="copilot-spin" />
