@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  AlertCircle, CheckCircle2, FileText, Loader2, Sparkles, X, Zap,
+  AlertCircle, CheckCircle2, FileText, Sparkles, X, Zap,
 } from 'lucide-react';
 import { aiService, type SummarizeProjectResponse } from '../../services/aiService';
 import { type Task } from '../../types/task';
@@ -42,7 +42,7 @@ const AISummarizeModal: React.FC<AISummarizeModalProps> = ({
             description: t.description,
             status: t.status,
             priority: t.priority,
-            dueDate: t.dueDate,
+            dueDate: t.dueDate ?? undefined,
           })),
         };
         const result: SummarizeProjectResponse = await aiService.summarizeProject(payload, userId);

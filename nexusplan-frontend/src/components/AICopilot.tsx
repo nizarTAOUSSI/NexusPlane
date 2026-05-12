@@ -1,14 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  MessageSquare, X, Send, Sparkles, Loader2, Bot, User,
-  ChevronDown, Minimize2, Maximize2, RefreshCw
-} from 'lucide-react';
+import { X, Send, Sparkles, Loader2, Bot, User,Minimize2, Maximize2, RefreshCw} from 'lucide-react';
 import { aiService, type CopilotPayload, type CopilotResponse } from '../services/aiService';
 import { useAuth } from '../context/AuthContext';
 import { type Task } from '../types/task';
 
-// ── Greeting detection ──────────────────────────────────────────────────────
 const _GREETING_RE = /^\s*(hi+|hey+|hello+|howdy|sup|yo+|salut|bonjour|bonsoir|bonne\s*journ[ée]e?|coucou|salam|مرحبا|hola|ciao|ola|greetings|good\s*(morning|afternoon|evening|day))\W*\s*$/i;
 
 function _greetingReply(userName?: string): string {
@@ -20,7 +16,6 @@ function _greetingReply(userName?: string): string {
   ];
   return replies[Math.floor(Math.random() * replies.length)];
 }
-// ───────────────────────────────────────────────────────────────────────────
 
 interface Message {
   id: string;
@@ -77,7 +72,6 @@ const AICopilot: React.FC<AICopilotProps> = ({
     setMessages(prev => [...prev, userMsg]);
     setInput('');
 
-    // ── Local greeting intercept — no API call, no token consumption ──────
     if (_GREETING_RE.test(userMsg.content)) {
       setMessages(prev => [...prev, {
         id: (Date.now() + 1).toString(),
@@ -87,7 +81,6 @@ const AICopilot: React.FC<AICopilotProps> = ({
       }]);
       return;
     }
-    // ─────────────────────────────────────────────────────────────────────
 
     setLoading(true);
 

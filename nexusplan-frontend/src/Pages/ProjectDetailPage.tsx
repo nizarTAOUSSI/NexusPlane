@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { taskService } from '../services/taskService';
 import { type Task } from '../types/task';
 import AISummarizeModal from '../components/Tasks/AISummarizeModal';
-import { Sparkles, FileText, ArrowLeft, Users, Calendar, Archive, Trash2,
+import { Sparkles, ArrowLeft, Users, Calendar, Archive, Trash2,
   Clock, Crown, Eye, Edit3, RefreshCw, FolderOpen,
   UserPlus, X, Send, CheckCircle, AlertCircle, Mail,
   ChevronDown, Shield, LogOut, UserMinus, Loader2 as LoaderIcon,
