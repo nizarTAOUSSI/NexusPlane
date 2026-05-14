@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type InternalAxiosRequestConfig } from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000',
@@ -7,22 +7,33 @@ const api = axios.create({
   },
 });
 
+function isPublicAuthRequest(config: InternalAxiosRequestConfig): boolean {
+  const rawUrl = (config.url || '').split('?')[0];
+  const markers = ['/auth/login', '/auth/register', '/auth/google-login', '/auth/refresh'];
+  return markers.some(m => rawUrl.includes(m));
+}
+
 api.interceptors.request.use(
   (config) => {
+    const skipAuth = isPublicAuthRequest(config);
+
     const token = localStorage.getItem('access_token');
-    if (token && config.headers) {
+    if (token && config.headers && !skipAuth) {
       config.headers.Authorization = `Bearer ${token}`;
+    } else if (config.headers && skipAuth) {
+      delete config.headers.Authorization;
     }
 
-
     const rawUser = localStorage.getItem('user_info');
-    if (rawUser) {
+    if (rawUser && config.headers && !skipAuth) {
       try {
         const u = JSON.parse(rawUser) as { id?: string };
-        if (u.id && config.headers) {
+        if (u.id) {
           config.headers['X-User-Id'] = u.id;
         }
       } catch {}
+    } else if (config.headers && skipAuth) {
+      delete config.headers['X-User-Id'];
     }
 
     return config;
@@ -35,13 +46,18 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry && originalRequest.url !== '/auth/login/') {
+    const skipRefresh =
+      !originalRequest ||
+      isPublicAuthRequest(originalRequest);
+
+    if (error.response?.status === 401 && !originalRequest._retry && !skipRefresh) {
       originalRequest._retry = true;
 
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {
         try {
-          const response = await axios.post(`${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'}/auth/refresh/`, {
+          const base = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+          const response = await axios.post(`${base}/auth/refresh/`, {
             refresh: refreshToken,
           });
 

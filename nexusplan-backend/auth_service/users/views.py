@@ -1,4 +1,5 @@
-import json
+import time
+import logging
 
 import redis as redis_client
 from django.conf import settings as django_settings
@@ -8,6 +9,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
+from google.auth.exceptions import GoogleAuthError
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
@@ -30,6 +32,7 @@ from .serializers import (
 _AUTH_TAG = ["Authentication"]
 _INTERNAL_TAG = ["Internal"]
 _PROFILE_TAG = ["Profile"]
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -164,13 +167,43 @@ class GoogleLoginView(APIView):
         serializer.is_valid(raise_exception=True)
         credential = serializer.validated_data["credential"]
 
-        try:
-            idinfo = id_token.verify_oauth2_token(
-                credential,
-                google_requests.Request(),
-                django_settings.GOOGLE_CLIENT_ID,
+        client_id = django_settings.GOOGLE_CLIENT_ID
+        if not client_id:
+            return Response(
+                {"detail": "Google Sign-In is not configured on the server."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
 
+        idinfo = None
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                req = google_requests.Request()
+                idinfo = id_token.verify_oauth2_token(
+                    credential,
+                    req,
+                    client_id,
+                    clock_skew_in_seconds=10,
+                )
+                break
+            except (ValueError, GoogleAuthError) as exc:
+                last_error = exc
+                logger.warning("Google token verify attempt %s failed: %s", attempt + 1, exc)
+            except Exception as exc:  # noqa: BLE001 — cert fetch / transport blips
+                last_error = exc
+                logger.warning("Google token verify transport error (attempt %s): %s", attempt + 1, exc)
+            if attempt < 2:
+                time.sleep(0.2 * (attempt + 1))
+
+        if idinfo is None:
+            if last_error:
+                logger.info("Google credential rejected after retries: %s", last_error)
+            return Response(
+                {"detail": "Invalid Google credential."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
             email = idinfo.get("email")
             name = idinfo.get("name", "")
             picture = idinfo.get("picture", None)
@@ -213,11 +246,11 @@ class GoogleLoginView(APIView):
                 status=status.HTTP_200_OK,
             )
 
-        except ValueError:
-            # Invalid token
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Google login persistence failed: %s", exc)
             return Response(
-                {"detail": "Invalid Google credential."},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"detail": "Could not complete sign-in. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

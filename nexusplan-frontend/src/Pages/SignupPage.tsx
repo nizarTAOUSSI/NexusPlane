@@ -15,10 +15,15 @@ const SignupPage = () => {
     const [password, setPassword] = useState('');
     const [passwordConfirm, setPasswordConfirm] = useState('');
 
-    const handleGoogleSuccess = async (credentialResponse: any) => {
+    const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
+        const credential = credentialResponse?.credential;
+        if (!credential) {
+            console.error('Google signup: missing credential');
+            return;
+        }
         try {
             setIsLoading(true);
-            const response = await api.post('/auth/google-login/', { credential: credentialResponse.credential });
+            const response = await api.post('/auth/google-login/', { credential });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
             navigate('/dashboard');
