@@ -17,8 +17,13 @@ interface ToastNotif {
   roomId: string;
 }
 
+let lastNotifSoundAt = 0;
+
 function playNotificationSound() {
   try {
+    const now = Date.now();
+    if (now - lastNotifSoundAt < 550) return;
+    lastNotifSoundAt = now;
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -82,6 +87,8 @@ const ChatContext = createContext<ChatContextValue>({
   markAllNotificationsRead: async () => {},
 });
 
+const LOCAL_MSG_NOTIF_PREFIX = 'local-msg-';
+
 function normalizeSocketNotification(payload: Record<string, unknown>): AppNotification | null {
   if (!payload?.id) return null;
   const fromInfo = payload.from_user_info as Record<string, unknown> | undefined;
@@ -110,6 +117,69 @@ function normalizeSocketNotification(payload: Record<string, unknown>): AppNotif
   };
 }
 
+function isLocalMessageNotificationId(id: string): boolean {
+  return id.startsWith(LOCAL_MSG_NOTIF_PREFIX);
+}
+
+function buildSyntheticMessageNotification(
+  data: {
+    type?: string;
+    senderId?: string;
+    receiverId?: string;
+    roomId?: string;
+    message?: string;
+    timestamp?: string;
+    senderName?: string;
+  },
+  userId: string,
+  rooms: ChatRoom[],
+  roomMembers: Record<string, TeamMember[]>,
+): AppNotification | null {
+  const senderId = data.senderId;
+  const message = data.message;
+  if (!senderId || message === undefined || senderId === userId) return null;
+
+  const ts = data.timestamp || new Date().toISOString();
+  const id = `${LOCAL_MSG_NOTIF_PREFIX}${crypto.randomUUID()}`;
+  const isGroup = data.type === 'group';
+
+  if (!isGroup) {
+    const room = rooms.find(r => r.id === senderId && r.type === 'dm');
+    return {
+      id,
+      type: 'dm',
+      data: { message },
+      is_read: false,
+      created_at: ts,
+      from_user: {
+        id: senderId,
+        username: room?.name || data.senderName || senderId,
+        email: '',
+        avatar: room?.avatar ?? null,
+      },
+    };
+  }
+
+  const roomId = data.roomId;
+  if (!roomId) return null;
+  const members = roomMembers[roomId] || [];
+  const m = members.find(x => x.userId === senderId);
+  const name = data.senderName || m?.username || m?.email || senderId;
+  return {
+    id,
+    type: 'group',
+    data: { message, roomId },
+    is_read: false,
+    created_at: ts,
+    from_user: {
+      id: senderId,
+      username: name,
+      email: '',
+      avatar: m?.avatar ?? null,
+    },
+  };
+}
+
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, token } = useAuth() as any;
   const navigate = useNavigate();
@@ -124,10 +194,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const socketRef = useRef<Socket | null>(null);
   const activeRoomIdRef = useRef<string | null>(null);
   const roomsRef = useRef<ChatRoom[]>([]);
+  const roomMembersRef = useRef<Record<string, TeamMember[]>>({});
   const updateRoomLastMsgRef = useRef<(roomId: string, msg: string, time: string, isActive: boolean) => void>(() => {});
 
   useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
   useEffect(() => { roomsRef.current = rooms; }, [rooms]);
+  useEffect(() => { roomMembersRef.current = roomMembers; }, [roomMembers]);
 
   const setRoomMembers = useCallback((roomId: string, members: TeamMember[]) => {
     setRoomMembersState(prev => ({ ...prev, [roomId]: members }));
@@ -169,6 +241,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [user?.id]);
 
   const markNotificationRead = useCallback(async (id: string) => {
+    if (isLocalMessageNotificationId(id)) {
+      setNotifications(prev => prev.map(n => (n.id === id ? { ...n, is_read: true } : n)));
+      return;
+    }
     try {
       const updated = await messagesApi.markNotificationRead(id);
       setNotifications(prev => prev.map(n => (n.id === id ? updated : n)));
@@ -191,9 +267,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     void refreshNotifications();
   }, [user?.id, refreshNotifications]);
 
-  // Auto-join ALL rooms whenever socket is connected + rooms are loaded.
-  // This ensures receiveMessage events are delivered even when ChatPage is not open.
-  // Also handles reconnects: `connected` flips false→true, re-running this effect.
   useEffect(() => {
     if (!connected || !roomsLoaded || !socketRef.current || !user?.id) return;
     const sock = socketRef.current;
@@ -207,9 +280,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [connected, roomsLoaded, user?.id]);
 
-  // Socket lifecycle — runs for the full session, not just while ChatPage is open
   useEffect(() => {
     if (!user?.id || !token) return;
+
+    const uid = user.id;
 
     const sock = io(SOCKET_URL, { reconnectionAttempts: 5, timeout: 5000 });
     socketRef.current = sock;
@@ -219,15 +293,23 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const row = normalizeSocketNotification(payload);
       if (!row) return;
       setNotifications(prev => {
-        if (prev.some(n => n.id === row.id)) return prev;
-        return [row, ...prev];
+        const fromId = row.from_user?.id;
+        const msg = row.data?.message;
+        const filtered = prev.filter(n => {
+          if (!isLocalMessageNotificationId(n.id)) return true;
+          if (fromId && n.from_user?.id !== fromId) return true;
+          if (msg !== undefined && String(n.data?.message) !== String(msg)) return true;
+          return false;
+        });
+        if (filtered.some(n => n.id === row.id)) return filtered;
+        return [row, ...filtered].slice(0, 100);
       });
       playNotificationSound();
     };
 
     sock.on('connect', () => {
       setConnected(true);
-      sock.emit('userOnline', { userId: user.id, token });
+      sock.emit('userOnline', { userId: uid, token });
       void messagesApi.listNotifications({ limit: 50 }).then(setNotifications).catch(() => {});
     });
     sock.on('disconnect', () => setConnected(false));
@@ -248,6 +330,26 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setToasts(prev => [...prev, { id: toastId, senderName, message: data.message, roomId: targetRoomId }]);
         playNotificationSound();
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== toastId)), 4500);
+
+        const syn = buildSyntheticMessageNotification(
+          data,
+          uid,
+          roomsRef.current,
+          roomMembersRef.current,
+        );
+        if (syn) {
+          setNotifications(prev => {
+            const head = prev.slice(0, 8);
+            const dup = head.some(
+              n =>
+                n.from_user?.id === syn.from_user?.id &&
+                String(n.data?.message) === String(syn.data?.message) &&
+                !n.is_read,
+            );
+            if (dup) return prev;
+            return [syn, ...prev].slice(0, 100);
+          });
+        }
       }
     });
 

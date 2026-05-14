@@ -9,6 +9,21 @@ from .models import User, DirectMessage, GroupMessage, Notification
 
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
 
+
+def _group_reply_preview(m: GroupMessage | None) -> dict | None:
+    if not m:
+        return None
+    text = (m.message or "").replace("\n", " ").strip()
+    if len(text) > 120:
+        text = text[:117] + "…"
+    return {
+        "id": str(m.id),
+        "senderId": str(m.sender_id),
+        "senderName": m.sender.username,
+        "message": text,
+    }
+
+
 def verify_internal_key(request):
     key = request.headers.get("X-Internal-Key")
     return key and key == INTERNAL_API_KEY
@@ -55,16 +70,34 @@ def store_group_msg(request):
     room_id = request.data.get("room_id")
     room_type = request.data.get("room_type", "group")
     message = request.data.get("message")
+    reply_to_id = request.data.get("reply_to_id")
 
     sender = get_object_or_404(User, id=sender_id)
+
+    reply_to = None
+    if reply_to_id:
+        reply_to = GroupMessage.objects.filter(id=reply_to_id, room_id=room_id).first()
+        if not reply_to:
+            return Response(
+                {"error": "reply_to_id must reference a message in the same room"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     msg = GroupMessage.objects.create(
         sender=sender,
         room_id=room_id,
         room_type=room_type,
-        message=message
+        message=message,
+        reply_to=reply_to,
     )
-    return Response({"status": "ok", "id": msg.id})
+    return Response(
+        {
+            "status": "ok",
+            "id": str(msg.id),
+            "senderName": sender.username,
+            "replyTo": _group_reply_preview(reply_to) if reply_to else None,
+        }
+    )
 
 @api_view(["POST"])
 @permission_classes([AllowAny])
@@ -127,17 +160,27 @@ def dm_history(request, other_user_id):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def group_history(request, room_id):
-    messages = GroupMessage.objects.filter(room_id=room_id).order_by("created_at")[:100]
+    messages = (
+        GroupMessage.objects.filter(room_id=room_id)
+        .select_related("sender", "reply_to", "reply_to__sender")
+        .order_by("created_at")[:100]
+    )
 
-    return Response([{
-        "id": str(m.id),
-        "senderId": str(m.sender_id),
-        "senderName": m.sender.username,
-        "message": m.message,
-        "timestamp": m.created_at.isoformat(),
-        "type": "group",
-        "roomId": m.room_id,
-    } for m in messages])
+    return Response(
+        [
+            {
+                "id": str(m.id),
+                "senderId": str(m.sender_id),
+                "senderName": m.sender.username,
+                "message": m.message,
+                "timestamp": m.created_at.isoformat(),
+                "type": "group",
+                "roomId": m.room_id,
+                "replyTo": _group_reply_preview(m.reply_to) if m.reply_to_id else None,
+            }
+            for m in messages
+        ]
+    )
 
 
 @api_view(["GET"])

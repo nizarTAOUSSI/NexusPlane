@@ -160,29 +160,49 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('sendGroupMessage', async ({ roomId, roomType = 'group', message, senderId: payloadSenderId }) => {
+    socket.on('sendGroupMessage', async ({
+        roomId,
+        roomType = 'group',
+        message,
+        senderId: payloadSenderId,
+        replyToId,
+    }) => {
         const senderId = currentUserId || payloadSenderId;
         if (!senderId) { socket.emit('error', { message: 'Not identified — call userOnline first' }); return; }
         if (!roomId)   { socket.emit('error', { message: 'roomId is required' }); return; }
 
         const room = `group_${roomId}`;
 
-        const payload = {
-            type:      'group',
-            roomId,
-            roomType,
-            senderId,
-            message,
-            timestamp: new Date().toISOString(),
-        };
-
-        io.to(room).emit('receiveMessage', payload);
-
         const saved = await djangoFetch(
             resolveUrl(API_STORE_GROUP_MSG),
             'POST',
-            { sender_id: senderId, room_id: roomId, room_type: roomType, message }
+            {
+                sender_id: senderId,
+                room_id: roomId,
+                room_type: roomType,
+                message,
+                reply_to_id: replyToId || null,
+            }
         );
+
+        if (!saved || saved.status !== 'ok') {
+            socket.emit('error', { message: 'Failed to store group message' });
+            return;
+        }
+
+        const payload = {
+            type:       'group',
+            roomId,
+            roomType,
+            senderId,
+            senderName: saved.senderName || undefined,
+            message,
+            timestamp:  new Date().toISOString(),
+            id:         saved.id,
+            replyTo:    saved.replyTo || undefined,
+        };
+
+        io.to(room).emit('receiveMessage', payload);
     });
 
     socket.on('typing', ({ room, isTyping }) => {

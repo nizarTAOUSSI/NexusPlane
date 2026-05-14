@@ -275,6 +275,9 @@ export const TopNavbar: React.FC = () => {
                       const dmTypes = new Set(['message', 'dm']);
                       if (dmTypes.has(n.type) && n.from_user?.id) {
                         openNotifFrom(n.from_user.id);
+                      } else if (n.type === 'group' && typeof n.data?.roomId === 'string') {
+                        setNotifOpen(false);
+                        navigate(`/chat/${n.data.roomId}`);
                       } else {
                         setNotifOpen(false);
                       }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import data from '@emoji-mart/data';
 import Picker from '@emoji-mart/react';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -8,6 +8,13 @@ import api from '../api';
 import { useChatContext, type ChatRoom } from '../context/ChatContext';
 import type { TeamMember } from '../teamsApi';
 
+interface ReplyRef {
+  id: string;
+  senderId: string;
+  senderName?: string;
+  message: string;
+}
+
 interface Message {
   id: string;
   senderId: string;
@@ -16,7 +23,64 @@ interface Message {
   timestamp: string;
   type: 'dm' | 'group';
   status?: 'sent' | 'delivered' | 'read';
+  replyTo?: ReplyRef | null;
 }
+
+function mentionHandle(m: TeamMember): string {
+  const u = (m.username || '').trim();
+  if (u) return u;
+  const email = m.email || '';
+  return email.split('@')[0] || 'user';
+}
+
+function mentionHandleSet(members: TeamMember[]): Set<string> {
+  const s = new Set<string>();
+  for (const m of members) {
+    const h = mentionHandle(m).toLowerCase();
+    if (h) s.add(h);
+  }
+  return s;
+}
+
+function splitMentionSegments(
+  text: string,
+  handles: Set<string>,
+): Array<{ kind: 'text' | 'mention'; v: string }> {
+  const re = /@([^\s@]+)/g;
+  const out: Array<{ kind: 'text' | 'mention'; v: string }> = [];
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ kind: 'text', v: text.slice(last, m.index) });
+    const full = m[0];
+    if (handles.has(m[1].toLowerCase())) out.push({ kind: 'mention', v: full });
+    else out.push({ kind: 'text', v: full });
+    last = m.index + full.length;
+  }
+  if (last < text.length) out.push({ kind: 'text', v: text.slice(last) });
+  return out;
+}
+
+const chatMdComponents = {
+  p: ({ children }: { children?: React.ReactNode }) => (
+    <span className="chat-md-inline">{children}</span>
+  ),
+};
+
+const ChatMessageBody: React.FC<{ text: string; memberHandles: Set<string> }> = ({ text, memberHandles }) => {
+  const segs = useMemo(() => splitMentionSegments(text, memberHandles), [text, memberHandles]);
+  return (
+    <>
+      {segs.map((seg, i) =>
+        seg.kind === 'mention' ? (
+          <span key={i} className="chat-mention">{seg.v}</span>
+        ) : (
+          <ReactMarkdown key={i} components={chatMdComponents}>{seg.v}</ReactMarkdown>
+        )
+      )}
+    </>
+  );
+};
 
 function initials(name: string) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
@@ -156,6 +220,12 @@ const ChatPage: React.FC = () => {
 
   const bottomRef   = useRef<HTMLDivElement>(null);
   const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionList, setMentionList] = useState<TeamMember[]>([]);
+  const [mentionHighlight, setMentionHighlight] = useState(0);
 
   useEffect(() => {
     if (!showEmojiPicker) return;
@@ -185,7 +255,7 @@ const ChatPage: React.FC = () => {
     if (!socket || !user?.id) return;
 
     const onMessage = (data: any) => {
-      if (data.senderId === user?.id) return;
+      if (data.senderId === user?.id && data.type === 'dm') return;
 
       const current = activeRoomRef.current;
       if (!current) return;
@@ -198,12 +268,13 @@ const ChatPage: React.FC = () => {
         (data.type === 'dm'    && current.type === 'dm' && current.id === targetRoomId);
       if (!isActiveRoom) return;
       setMessages(prev => [...prev, {
-        id: crypto.randomUUID(),
+        id: data.id || crypto.randomUUID(),
         senderId: data.senderId,
-        senderName: data.senderId === user?.id ? 'You' : data.senderId,
+        senderName: data.senderName || (data.senderId === user?.id ? 'You' : data.senderId),
         message: data.message,
         timestamp: msgTime,
         type: data.type,
+        replyTo: data.replyTo ?? undefined,
       }]);
     };
 
@@ -245,6 +316,8 @@ const ChatPage: React.FC = () => {
     if (!activeRoom || !user?.id) return;
     setMessages([]);
     setTyping(null);
+    setReplyingTo(null);
+    setMentionOpen(false);
 
     setRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, unread: 0 } : r));
 
@@ -268,6 +341,7 @@ const ChatPage: React.FC = () => {
       const rawHistory = res.data as Array<Message & { is_read?: boolean }>;
       const history: Message[] = rawHistory.map(m => ({
         ...m,
+        replyTo: m.replyTo ?? undefined,
         status: m.senderId === user?.id
           ? (m.is_read ? 'read' : 'sent')
           : undefined,
@@ -288,11 +362,25 @@ const ChatPage: React.FC = () => {
     const text = input.trim();
     if (!text || !socket) return;
     setInput('');
+    setMentionOpen(false);
 
     if (!activeRoom) return;
 
-    // Add optimistically so the message appears instantly
     const now = new Date().toISOString();
+    const replySnapshot = replyingTo;
+    setReplyingTo(null);
+
+    if (activeRoom.type === 'group') {
+      socket.emit('sendGroupMessage', {
+        roomId: activeRoom.id,
+        roomType: 'group',
+        message: text,
+        senderId: user?.id,
+        replyToId: replySnapshot?.id,
+      });
+      return;
+    }
+
     setMessages(prev => [...prev, {
       id: crypto.randomUUID(),
       senderId: user?.id,
@@ -303,26 +391,66 @@ const ChatPage: React.FC = () => {
       status: 'sent',
     }]);
 
-    if (activeRoom.type === 'group') {
-      socket.emit('sendGroupMessage', {
-        roomId: activeRoom.id,
-        roomType: 'group',
-        message: text,
-        senderId: user?.id
-      });
-    } else {
-      socket.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id });
-    }
-  }, [input, activeRoom, user, socket]);
+    socket.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id });
+  }, [input, activeRoom, user, socket, replyingTo]);
 
-  const onKeyDown = (e: React.KeyboardEvent) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (mentionOpen && mentionList.length) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionHighlight(i => Math.min(i + 1, mentionList.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionHighlight(i => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        const pick = mentionList[mentionHighlight] ?? mentionList[0];
+        if (pick) insertMention(pick);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionOpen(false);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
   const onInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInput(e.target.value);
+    const v = e.target.value;
+    const cursor = e.target.selectionStart ?? v.length;
+    setInput(v);
+
+    if (activeRoom?.type === 'group' && user?.id) {
+      const before = v.slice(0, cursor);
+      const match = /@([\w.-]*)$/.exec(before);
+      if (match) {
+        const q = match[1].toLowerCase();
+        const members = (roomMembers[activeRoom.id] ?? []).filter(m => m.userId !== user.id);
+        const filteredM = q
+          ? members.filter(m => {
+              const h = mentionHandle(m).toLowerCase();
+              const email = (m.email || '').toLowerCase();
+              return h.includes(q) || email.includes(q);
+            })
+          : members;
+        setMentionList(filteredM.slice(0, 8));
+        setMentionOpen(filteredM.length > 0);
+        setMentionHighlight(0);
+      } else {
+        setMentionOpen(false);
+      }
+    } else {
+      setMentionOpen(false);
+    }
+
     if (!socket || !activeRoom || !user) return;
-    
+
     let room = '';
     if (activeRoom.type === 'group') {
       room = `group_${activeRoom.id}`;
@@ -330,7 +458,7 @@ const ChatPage: React.FC = () => {
       const ids = [user.id, activeRoom.id].sort();
       room = `dm_${ids[0]}_${ids[1]}`;
     }
-    
+
     socket.emit('typing', { room, isTyping: true });
     if (typingTimer.current) clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(() => socket.emit('typing', { room, isTyping: false }), 1500);
@@ -339,6 +467,30 @@ const ChatPage: React.FC = () => {
   const filtered = rooms.filter(r =>
     r.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const groupMemberHandles = useMemo(() => {
+    if (activeRoom?.type !== 'group') return new Set<string>();
+    return mentionHandleSet(roomMembers[activeRoom.id] ?? []);
+  }, [activeRoom?.type, activeRoom?.id, roomMembers]);
+
+  const insertMention = useCallback((m: TeamMember) => {
+    const el = inputRef.current;
+    if (!el) return;
+    const v = el.value;
+    const cursor = el.selectionStart ?? v.length;
+    const before = v.slice(0, cursor);
+    const start = before.lastIndexOf('@');
+    if (start < 0) return;
+    const insert = `@${mentionHandle(m)} `;
+    const next = v.slice(0, start) + insert + v.slice(cursor);
+    setInput(next);
+    setMentionOpen(false);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + insert.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }, []);
 
   const openNewChatModal = () => {
     setShowNewChatModal(true);
@@ -543,8 +695,34 @@ const ChatPage: React.FC = () => {
                     <p className="chat-msg-sender">{displayName || msg.senderId}</p>
                   )}
                   <div className={`chat-bubble${isMe ? ' chat-bubble--me' : ''}`}>
+                    {activeRoom.type === 'group' && (
+                      <button
+                        type="button"
+                        className="chat-bubble-reply-btn"
+                        title="Reply"
+                        aria-label="Reply to message"
+                        onClick={() => setReplyingTo(msg)}
+                      >
+                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
+                        </svg>
+                      </button>
+                    )}
                     <div className="chat-bubble-text">
-                      <ReactMarkdown>{msg.message}</ReactMarkdown>
+                      {msg.replyTo && (
+                        <div className="chat-reply-quote">
+                          <span className="chat-reply-quote-bar" aria-hidden />
+                          <div className="chat-reply-quote-inner">
+                            <span className="chat-reply-quote-name">{msg.replyTo.senderName || msg.replyTo.senderId}</span>
+                            <span className="chat-reply-quote-text">{msg.replyTo.message}</span>
+                          </div>
+                        </div>
+                      )}
+                      {msg.type === 'group' ? (
+                        <ChatMessageBody text={msg.message} memberHandles={groupMemberHandles} />
+                      ) : (
+                        <ReactMarkdown components={chatMdComponents}>{msg.message}</ReactMarkdown>
+                      )}
                     </div>
                   </div>
                   <p className="chat-msg-time">
@@ -570,13 +748,62 @@ const ChatPage: React.FC = () => {
         </div>
 
         <div className="chat-input-bar">
-          <input
-            className="chat-input"
-            placeholder={`Message ${activeRoom.name}…`}
-            value={input}
-            onChange={onInputChange}
-            onKeyDown={onKeyDown}
-          />
+          {replyingTo && activeRoom.type === 'group' && (
+            <div className="chat-replying-strip">
+              <div className="chat-replying-strip-inner">
+                <span className="chat-replying-strip-label">
+                  Replying to {replyingTo.senderName
+                    || (roomMembers[activeRoom.id] ?? []).find(m => m.userId === replyingTo.senderId)?.username
+                    || replyingTo.senderId}
+                </span>
+                <span className="chat-replying-strip-preview">
+                  {(replyingTo.message || '').replace(/\n/g, ' ').slice(0, 100)}
+                  {(replyingTo.message || '').length > 100 ? '…' : ''}
+                </span>
+              </div>
+              <button type="button" className="chat-replying-strip-cancel" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">
+                ×
+              </button>
+            </div>
+          )}
+          <div className="chat-input-bar-row">
+            {mentionOpen && activeRoom.type === 'group' && mentionList.length > 0 && (
+              <div className="chat-mention-popover" role="listbox">
+                {mentionList.map((m, idx) => {
+                  const name = m.username || m.email || 'Unknown';
+                  return (
+                    <button
+                      key={m.userId}
+                      type="button"
+                      role="option"
+                      aria-selected={idx === mentionHighlight}
+                      className={`chat-mention-option${idx === mentionHighlight ? ' chat-mention-option--active' : ''}`}
+                      onMouseDown={e => e.preventDefault()}
+                      onMouseEnter={() => setMentionHighlight(idx)}
+                      onClick={() => insertMention(m)}
+                    >
+                      {m.avatar
+                        ? <img src={m.avatar} alt="" className="chat-mention-option-avatar" />
+                        : <AvatarChip name={name} size={28} color={colorFor(m.userId)} />}
+                      <span className="chat-mention-option-name">{name}</span>
+                      <span className="chat-mention-option-handle">@{mentionHandle(m)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            <input
+              ref={inputRef}
+              className="chat-input"
+              placeholder={
+                activeRoom.type === 'group'
+                  ? `Message ${activeRoom.name}… (@ to mention)`
+                  : `Message ${activeRoom.name}…`
+              }
+              value={input}
+              onChange={onInputChange}
+              onKeyDown={onKeyDown}
+            />
           <div ref={emojiPickerRef} style={{ position: 'relative' }}>
             {showEmojiPicker && (
               <div style={{ position: 'absolute', bottom: '48px', right: 0, zIndex: 1000 }}>
@@ -609,6 +836,7 @@ const ChatPage: React.FC = () => {
               <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
           </button>
+          </div>
         </div>
       </div>
 
@@ -631,14 +859,25 @@ const ChatPage: React.FC = () => {
             {(roomMembers[activeRoom.id] || []).map(m => {
                   const name = m.username || m.email || 'Unknown';
                   return (
-                    <div key={m.userId} className="chat-right-member">
+                    <button
+                      key={m.userId}
+                      type="button"
+                      className="chat-right-member"
+                      title="Add mention to message"
+                      onClick={() => {
+                        if (m.userId === user?.id) return;
+                        const h = mentionHandle(m);
+                        setInput(prev => (prev ? `${prev.trimEnd()} @${h} ` : `@${h} `));
+                        inputRef.current?.focus();
+                      }}
+                    >
                       {m.avatar
                         ? <img src={m.avatar} alt={name} style={{ width: 30, height: 30, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                         : <AvatarChip name={name} size={30} color={colorFor(m.userId)} />
                       }
                       <span className="chat-right-member-name">{name}</span>
                       <span className="chat-right-member-dot" />
-                    </div>
+                    </button>
                   );
                 })}
             {!(roomMembers[activeRoom.id]?.length) && (
