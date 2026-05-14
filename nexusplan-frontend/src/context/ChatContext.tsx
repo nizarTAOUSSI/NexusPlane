@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { teamsApi, type TeamMember } from '../teamsApi';
 import api from '../api';
 import { useAuth } from './AuthContext';
@@ -183,6 +183,7 @@ function buildSyntheticMessageNotification(
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, token } = useAuth() as any;
   const navigate = useNavigate();
+  const location = useLocation();
   const [rooms, setRooms] = useState<ChatRoom[]>([]);
   const [roomMembers, setRoomMembersState] = useState<Record<string, TeamMember[]>>({});
   const [roomsLoaded, setRoomsLoaded] = useState(false);
@@ -192,12 +193,16 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  const activeRoomIdRef = useRef<string | null>(null);
+  /** SPA path; used so toasts fire after leaving /chat (activeRoomId was never cleared). */
+  const chatPathnameRef = useRef(location.pathname);
   const roomsRef = useRef<ChatRoom[]>([]);
   const roomMembersRef = useRef<Record<string, TeamMember[]>>({});
   const updateRoomLastMsgRef = useRef<(roomId: string, msg: string, time: string, isActive: boolean) => void>(() => {});
 
-  useEffect(() => { activeRoomIdRef.current = activeRoomId; }, [activeRoomId]);
+  useEffect(() => {
+    chatPathnameRef.current = location.pathname;
+  }, [location.pathname]);
+
   useEffect(() => { roomsRef.current = rooms; }, [rooms]);
   useEffect(() => { roomMembersRef.current = roomMembers; }, [roomMembers]);
 
@@ -320,10 +325,12 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? data.roomId
         : (data.senderId === user?.id ? data.receiverId : data.senderId);
 
-      const isActive = activeRoomIdRef.current === targetRoomId;
-      updateRoomLastMsgRef.current(targetRoomId, data.message, msgTime, isActive);
+      const pathMatch = /^\/chat\/([^/?#]+)/.exec(chatPathnameRef.current);
+      const isViewingThisThread =
+        pathMatch != null && String(pathMatch[1]) === String(targetRoomId);
+      updateRoomLastMsgRef.current(targetRoomId, data.message, msgTime, isViewingThisThread);
 
-      if (data.senderId !== user?.id && !isActive) {
+      if (String(data.senderId) !== String(uid) && !isViewingThisThread) {
         const room = roomsRef.current.find(r => r.id === targetRoomId);
         const senderName = room?.name ?? data.senderId;
         const toastId = crypto.randomUUID();

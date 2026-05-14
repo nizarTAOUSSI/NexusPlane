@@ -249,7 +249,10 @@ const ChatPage: React.FC = () => {
 
   useEffect(() => {
     setActiveRoomId(activeRoom?.id ?? null);
-  }, [activeRoom?.id]);
+    return () => {
+      setActiveRoomId(null);
+    };
+  }, [activeRoom?.id, setActiveRoomId]);
 
   useEffect(() => {
     if (!socket || !user?.id) return;
