@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { aiService } from '../../services/aiService';
 import type { DashboardTaskContext } from '../../services/aiService';
@@ -14,6 +14,30 @@ interface DashboardAISummaryCardProps {
   dataKey?: string;
 }
 
+interface SummaryCache {
+  summary: string;
+  modelLabel: string;
+}
+
+const CACHE_KEY_PREFIX = 'nexusplan-dash-ai-summary-';
+
+function readCache(userId: string): SummaryCache | null {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY_PREFIX + userId);
+    return raw ? (JSON.parse(raw) as SummaryCache) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeCache(userId: string, data: SummaryCache): void {
+  try {
+    sessionStorage.setItem(CACHE_KEY_PREFIX + userId, JSON.stringify(data));
+  } catch {
+    // sessionStorage unavailable — silently skip
+  }
+}
+
 const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
   userId,
   username,
@@ -21,15 +45,21 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
   overdueTasks,
   activeProjects,
   taskSample = [],
-  dataKey,
 }) => {
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modelLabel, setModelLabel] = useState<string>('');
-  const prevKeyRef = useRef<string | undefined>(undefined);
 
-  const fetchSummary = useCallback(async () => {
+  const fetchSummary = useCallback(async (bypassCache = false) => {
+    if (!bypassCache) {
+      const cached = readCache(userId);
+      if (cached) {
+        setSummary(cached.summary);
+        setModelLabel(cached.modelLabel);
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
     try {
@@ -43,10 +73,11 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
         },
         userId,
       );
-      setSummary(res.summary);
       const raw = res.modelUsed ?? '';
       const short = raw.includes('llama') ? 'Llama 3.3' : raw.includes('gemini') ? 'Gemini' : raw.split('/').pop() ?? 'AI';
+      setSummary(res.summary);
       setModelLabel(short);
+      writeCache(userId, { summary: res.summary, modelLabel: short });
     } catch {
       setError("Unable to load AI summary. Check your connection.");
     } finally {
@@ -55,10 +86,8 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
   }, [userId, username, activeTasks, overdueTasks, activeProjects, taskSample]);
 
   useEffect(() => {
-    if (prevKeyRef.current === dataKey && summary !== null) return;
-    prevKeyRef.current = dataKey;
-    fetchSummary();
-  }, [dataKey]);
+    fetchSummary(false);
+  }, []);
 
   return (
     <WidgetShell title="AI Summary" icon={<Sparkles size={14} style={{ color: '#8b5cf6' }} />}>
@@ -93,7 +122,7 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
         <button
           type="button"
           className="dash-ai-refresh-btn"
-          onClick={fetchSummary}
+          onClick={() => fetchSummary(true)}
           disabled={loading}
           title="Regenerate summary"
           aria-label="Regenerate AI summary"

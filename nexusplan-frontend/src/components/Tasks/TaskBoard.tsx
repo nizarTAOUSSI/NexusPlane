@@ -433,11 +433,13 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
             userId={user.id}
             onClose={() => setShowAI(false)}
             onImport={async (aiTasks: CreateTaskPayload[]) => {
-              for (const payload of aiTasks) {
-                const created = await taskService.createTask(payload, user.id);
-                setTasks(prev => [created, ...prev]);
+              const createdTasks = await Promise.all(
+                aiTasks.map(payload => taskService.createTask(payload, user.id)),
+              );
+              createdTasks.forEach(created => {
                 send({ type: 'task_created', payload: { task: created } });
-              }
+              });
+              await loadTasks();
             }}
           />
         )}

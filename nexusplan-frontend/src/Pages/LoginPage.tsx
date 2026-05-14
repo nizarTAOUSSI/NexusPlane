@@ -54,7 +54,7 @@ const LoginPage = () => {
             <div className="hidden lg:flex w-[55%] bg-[#f8f9fa] p-12 flex-col h-[95vh] rounded-[8%] shadow-xl m-5 relative overflow-hidden">
                 <div className="z-10 relative mt-8 mb-8">
                     <h1 className="text-4xl xl:text-[2.75rem] font-extrabold text-slate-900 leading-[1.1] mb-5 tracking-tight">
-                        Manage projects at <br />  the speedof thought <br />  together.
+                        Manage projects at <br />  the speed of thought <br />  together.
                     </h1>
                     <p className="text-slate-500 text-lg max-w-sm leading-relaxed">
                         The first AI-powered real-time collaborative platform.
