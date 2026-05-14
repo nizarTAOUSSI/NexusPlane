@@ -412,11 +412,16 @@ def _call_openrouter(prompt: str, system_prompt: str) -> tuple[str, int, str]:
     if configured:
         candidates.append(configured)
     for fallback in (
+        "openai/gpt-oss-120b:free",
+        "openai/gpt-oss-20b:free",
+        "nvidia/nemotron-3-super-120b-a12b:free",
+        "google/gemma-4-31b-it:free",
+        "nvidia/nemotron-3-nano-30b-a3b:free",
         "qwen/qwen3-8b:free",
         "meta-llama/llama-3.2-3b-instruct:free",
-        "google/gemma-3-1b-it:free",
+        "deepseek/deepseek-r1:free",
+        "deepseek/deepseek-chat:free",
         "meta-llama/llama-4-scout:free",
-        "microsoft/phi-3-mini-128k-instruct:free",
     ):
         if fallback not in candidates:
             candidates.append(fallback)
