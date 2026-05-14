@@ -174,7 +174,8 @@ RULES:
 - Write exactly 2-3 sentences. No more.
 - Be data-driven: reference the counts (active tasks, overdue tasks, active projects) directly.
 - End with one concrete, specific recommendation.
-- Respond in the same language as the task titles provided (French if titles are French, English if English).
+# - Respond in the same language as the task titles provided (French if titles are French, English if English).
+- Respond in english regardless of task language to maintain consistency in the dashboard UI.
 - Do NOT use markdown, bullet points, or headers. Plain prose only.
 - Do NOT address the user by "Dear" or start with "Hello". Be direct.
 - Be encouraging but honest — if there are overdue tasks, acknowledge the risk clearly.
