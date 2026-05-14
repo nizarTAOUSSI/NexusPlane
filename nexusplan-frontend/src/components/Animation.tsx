@@ -314,9 +314,9 @@ const Animation = () => {
                     >
                         <div className="flex items-start gap-2.5">
                             <div>
-                                <h4 className="flex gap-2 items-center text-sm font-bold text-gray-900 mb-0.5"> <BsStars size={18} className='text-blue-500' />Suggestion IA</h4>
+                                <h4 className="flex gap-2 items-center text-sm font-bold text-gray-900 mb-0.5"> <BsStars size={18} className='text-blue-500' />AI Suggestion</h4>
                                 <p className="text-[11px] text-gray-600 leading-snug">
-                                    L'analyse montre un goulot d'étranglement sur le projet Alpha. Redonner des tâches ?
+                                   A bottleneck has been detected in Project Alpha. Reassign tasks?
                                 </p>
                             </div>
                         </div>

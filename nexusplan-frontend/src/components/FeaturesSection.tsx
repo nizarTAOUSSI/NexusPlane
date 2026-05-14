@@ -2,9 +2,9 @@ import { motion } from 'framer-motion';
 import { BsStars } from 'react-icons/bs';
 
 const COLS = [
-  { label: 'À faire',  bg: '#f1f5f9', ring: 'ring-slate-200', tasks: ['Onboarding UX', 'API endpoints'] },
-  { label: 'En cours', bg: '#eff6ff', ring: 'ring-blue-100',  tasks: ['Dashboard analytics'] },
-  { label: 'Terminé',  bg: '#f0fdf4', ring: 'ring-emerald-100', tasks: ['Auth module', 'CI pipeline'] },
+  { label: 'To Do',      bg: '#f1f5f9', ring: 'ring-slate-200',  tasks: ['Onboarding UX', 'API endpoints'] },
+  { label: 'In Progress', bg: '#eff6ff', ring: 'ring-blue-100',  tasks: ['Dashboard analytics'] },
+  { label: 'Done',       bg: '#f0fdf4', ring: 'ring-emerald-100', tasks: ['Auth module', 'CI pipeline'] },
 ];
 
 const GANTT = [
@@ -40,7 +40,7 @@ export default function FeaturesSection() {
           <motion.div variants={item} className="mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50/80 border border-blue-100/80 backdrop-blur-sm shadow-sm">
               <BsStars className="text-blue-600 w-4 h-4" />
-              <span className="text-blue-700 text-sm font-semibold tracking-wide">Fonctionnalités</span>
+              <span className="text-blue-700 text-sm font-semibold tracking-wide">Features</span>
             </div>
           </motion.div>
 
@@ -48,9 +48,9 @@ export default function FeaturesSection() {
             variants={item}
             className="text-3xl sm:text-4xl lg:text-[3.4rem] font-extrabold text-slate-900 leading-[1.1] tracking-tight mb-8 lg:mb-14 max-w-2xl"
           >
-            Tout ce dont votre équipe{' '}
+            Everything your team{' '}
             <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-600 via-blue-500 to-cyan-500">
-              a besoin.
+              needs.
             </span>
           </motion.h2>
 
@@ -66,8 +66,8 @@ export default function FeaturesSection() {
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-[10px] font-bold uppercase tracking-wider mb-4">
                   Kanban
                 </div>
-                <h3 className="text-xl font-bold text-slate-900 mb-1.5">Visualisez le flux en temps réel</h3>
-                <p className="text-slate-500 text-sm leading-relaxed mb-6">Glissez-déposez les tâches, assignez vos membres et suivez l'avancement instantanément.</p>
+                <h3 className="text-xl font-bold text-slate-900 mb-1.5">Visualize your workflow in real time</h3>
+                <p className="text-slate-500 text-sm leading-relaxed mb-6">Drag and drop tasks, assign members, and track progress instantly.</p>
                 <div className="space-y-3">
                   {COLS.map((c) => (
                     <div key={c.label} className="flex items-start gap-3">
@@ -99,8 +99,8 @@ export default function FeaturesSection() {
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-50 border border-violet-100 text-violet-700 text-[10px] font-bold uppercase tracking-wider mb-4">
                   Gantt
                 </div>
-                <h3 className="text-lg font-bold text-slate-900 mb-1">Timeline & jalons</h3>
-                <p className="text-slate-500 text-sm leading-relaxed mb-5">Planifiez les dépendances sur une timeline claire et intuitive.</p>
+                <h3 className="text-lg font-bold text-slate-900 mb-1">Timeline & milestones</h3>
+                <p className="text-slate-500 text-sm leading-relaxed mb-5">Plan dependencies on a clear, intuitive timeline.</p>
                 <div className="space-y-2.5">
                   {GANTT.map((b) => (
                     <div key={b.name} className="flex items-center gap-2">
@@ -127,10 +127,10 @@ export default function FeaturesSection() {
               <div className="absolute inset-0 bg-linear-to-br from-emerald-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
               <div className="relative">
                 <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-700 text-[10px] font-bold uppercase tracking-wider mb-4">
-                  Rapports
+                  Reports
                 </div>
-                <h3 className="text-base font-bold text-slate-900 mb-1">Insights IA automatiques</h3>
-                <p className="text-slate-500 text-sm leading-relaxed mb-5">Métriques temps réel, sans configuration.</p>
+                <h3 className="text-base font-bold text-slate-900 mb-1">Automatic AI insights</h3>
+                <p className="text-slate-500 text-sm leading-relaxed mb-5">Real-time metrics, zero configuration.</p>
                 <div className="flex items-end gap-1.5 h-12">
                   {[55, 75, 45, 90, 65, 100, 50,80 ,44,5,99,77].map((h, i) => (
                     <div

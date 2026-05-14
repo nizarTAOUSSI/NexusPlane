@@ -50,23 +50,7 @@ const HeroSection = () => {
                 transition={{ delay: 0.15, duration: 0.6 }}
                 className="text-[28px] sm:text-[40px] md:text-[36px] lg:text-[52px] font-bold text-gray-900 leading-[1.1] tracking-tight"
               >
-                Gérez vos projets à la
-              </motion.h1>
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.25, duration: 0.6 }}
-                className="text-[28px] sm:text-[40px] md:text-[36px] lg:text-[52px] font-bold text-gray-900 leading-[1.1] tracking-tight"
-              >
-                vitesse de la pensée.
-              </motion.h1>
-              <motion.h1
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35, duration: 0.6 }}
-                className="text-[28px] sm:text-[40px] md:text-[36px] lg:text-[52px] font-bold text-gray-900 leading-[1.1] tracking-tight"
-              >
-                Ensemble.
+                Think, plan, and build — together.
               </motion.h1>
             </div>
 
@@ -76,7 +60,7 @@ const HeroSection = () => {
               transition={{ delay: 0.45, duration: 0.6 }}
               className="text-base sm:text-lg text-gray-600 leading-relaxed max-w-md"
             >
-              La première plateforme collaborative en temps réel propulsée par l'IA. Planifiez, exécutez et anticipez les risques sans jamais quitter votre espace de travail.
+              The first AI-powered real-time collaborative platform. Plan, execute, and anticipate risks without ever leaving your workspace.
             </motion.p>
 
             <motion.div
@@ -91,7 +75,7 @@ const HeroSection = () => {
                 whileTap={{ scale: 0.98 }}
                 className="w-full sm:w-auto px-7 sm:px-9 py-3.5 sm:py-4 cursor-pointer bg-[#0568fa] hover:bg-[#0052d4] text-white text-base sm:text-lg font-medium rounded-2xl shadow-lg shadow-blue-500/20 transition-colors duration-200"
               >
-                Démarrer gratuitement
+                Get started for free
               </motion.button>
               <motion.button
                 onClick={() => navigate('/login')}
@@ -103,7 +87,7 @@ const HeroSection = () => {
                 whileTap={{ scale: 0.97 }}
                 className="w-full sm:w-auto px-8 sm:px-10 py-3.5 sm:py-4 cursor-pointer bg-white/50 backdrop-blur-md border-2 border-gray-200 text-gray-800 hover:text-[#0568fa] text-base sm:text-lg font-semibold rounded-2xl transition-all duration-300 shadow-sm"
               >
-                Accéder à l'espace
+                Sign in
               </motion.button>
             </motion.div>
           </motion.div>

@@ -37,7 +37,7 @@ const SignupPage = () => {
     const handleEmailSignup = async (e: React.FormEvent) => {
         e.preventDefault();
         if (password !== passwordConfirm) {
-            alert('Les mots de passe ne correspondent pas.');
+            alert('Passwords do not match.');
             return;
         }
         setIsLoading(true);
@@ -64,8 +64,8 @@ const SignupPage = () => {
                         <img src={logo} alt="NexusPlan Logo" className="w-10 h-10 object-contain" />
                         <span className="text-2xl font-bold text-slate-900 tracking-tight">NexusPlan</span>
                     </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-1.5">Rejoignez-nous</h2>
-                    <p className="text-slate-500 text-sm font-medium">Créez votre compte NexusPlan</p>
+                    <h2 className="text-xl font-bold text-slate-900 mb-1.5">Join us</h2>
+                    <p className="text-slate-500 text-sm font-medium">Create your NexusPlan account</p>
                 </div>
 
                 <div className="w-full max-w-sm text-center">
@@ -75,7 +75,7 @@ const SignupPage = () => {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Adresse e-mail"
+                                placeholder="Email address"
                                 required
                                 className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
                             />
@@ -85,7 +85,7 @@ const SignupPage = () => {
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Mot de passe"
+                                placeholder="Password"
                                 required
                                 minLength={8}
                                 className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
@@ -96,7 +96,7 @@ const SignupPage = () => {
                                 type="password"
                                 value={passwordConfirm}
                                 onChange={(e) => setPasswordConfirm(e.target.value)}
-                                placeholder="Confirmer le mot de passe"
+                                placeholder="Confirm password"
                                 required
                                 minLength={8}
                                 className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
@@ -105,7 +105,7 @@ const SignupPage = () => {
 
                         <div className="pt-2">
                             <button type="submit" disabled={isLoading} className="w-full bg-[#0d6efd] text-white rounded-xl py-3.5 font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70">
-                                {isLoading ? 'Chargement...' : "S'inscrire"}
+                                {isLoading ? 'Loading...' : 'Sign up'}
                             </button>
                         </div>
                     </form>
@@ -115,7 +115,7 @@ const SignupPage = () => {
                             <div className="w-full border-t border-gray-200"></div>
                         </div>
                         <div className="relative flex justify-center text-sm">
-                            <span className="px-4 bg-white text-gray-500 font-medium">Ou</span>
+                            <span className="px-4 bg-white text-gray-500 font-medium">Or</span>
                         </div>
                     </div>
 
@@ -130,7 +130,7 @@ const SignupPage = () => {
                     </div>
 
                     <p className="text-sm text-slate-500 mt-8 font-medium">
-                        Vous avez déjà un compte ? <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }} className="text-slate-900 font-bold hover:underline decoration-2 underline-offset-2">Se connecter</a>
+                        Already have an account? <a href="/login" onClick={(e) => { e.preventDefault(); navigate('/login'); }} className="text-slate-900 font-bold hover:underline decoration-2 underline-offset-2">Sign in</a>
                     </p>
 
                 </div>
@@ -139,10 +139,10 @@ const SignupPage = () => {
             <div className="hidden lg:flex w-[55%] bg-[#f8f9fa] p-12 flex-col h-[95vh] rounded-[8%] shadow-xl m-5 relative overflow-hidden">
                 <div className="z-10 relative mt-8 mb-8">
                     <h1 className="text-4xl xl:text-[2.75rem] font-extrabold text-slate-900 leading-[1.1] mb-5 tracking-tight">
-                        Construisez l'avenir <br /> dès aujourd'hui. <br /> Avec NexusPlan.
+                        Build the future <br /> starting today. <br /> With NexusPlan.
                     </h1>
                     <p className="text-slate-500 text-lg max-w-sm leading-relaxed">
-                        Rejoignez des milliers d'équipes performantes.
+                        Join thousands of high-performing teams.
                     </p>
                     <BackBtn link={"/"} />
                 </div>

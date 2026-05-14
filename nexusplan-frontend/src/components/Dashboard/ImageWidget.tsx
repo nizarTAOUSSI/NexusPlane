@@ -71,7 +71,7 @@ const ImageWidget: React.FC<ImageWidgetProps> = ({ widgetId }) => {
             alt={imageData.caption ?? 'Vision board'}
             className="dash-image-img"
             onClick={() => fileRef.current?.click()}
-            title="Cliquez pour remplacer l'image"
+            title="Click to replace the image"
           />
           <div className="dash-image-caption-row">
             {editingCaption ? (
@@ -86,7 +86,7 @@ const ImageWidget: React.FC<ImageWidgetProps> = ({ widgetId }) => {
                     if (e.key === 'Escape') setEditingCaption(false);
                   }}
                   autoFocus
-                  placeholder="Légende…"
+                  placeholder="Add a caption..."
                 />
                 <button type="button" className="dash-image-caption-save" onClick={saveCaption}>
                   ✓
@@ -100,7 +100,7 @@ const ImageWidget: React.FC<ImageWidgetProps> = ({ widgetId }) => {
                 >
                   {imageData.caption || (
                     <em style={{ color: 'var(--text-3)', fontStyle: 'italic', fontSize: 11 }}>
-                      Ajouter une légende…
+                      Add a caption…
                     </em>
                   )}
                 </span>
@@ -108,8 +108,8 @@ const ImageWidget: React.FC<ImageWidgetProps> = ({ widgetId }) => {
                   type="button"
                   className="dash-image-caption-edit"
                   onClick={() => { setCaptionDraft(imageData.caption ?? ''); setEditingCaption(true); }}
-                  title="Modifier la légende"
-                  aria-label="Modifier la légende"
+                  title="Edit caption"
+                  aria-label="Edit caption"
                 >
                   <Edit2 size={10} />
                 </button>
@@ -122,8 +122,8 @@ const ImageWidget: React.FC<ImageWidgetProps> = ({ widgetId }) => {
           <div className="dash-image-empty-icon">
             <Upload size={28} />
           </div>
-          <p className="dash-image-empty-label">Cliquez pour ajouter une image</p>
-          <p className="dash-image-empty-sub">PNG, JPG, WebP — stocké localement dans votre navigateur</p>
+          <p className="dash-image-empty-label">Click to add an image</p>
+          <p className="dash-image-empty-sub">PNG, JPG, WebP — stored locally in your browser</p>
         </div>
       )}
     </WidgetShell>

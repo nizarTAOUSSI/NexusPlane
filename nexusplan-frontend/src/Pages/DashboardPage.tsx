@@ -223,20 +223,20 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
         <div>
           <div className="dash-orbit-kicker">
             <span className="dash-orbit-kicker-dot" />
-            Tableau de bord
+            Dashboard
           </div>
           <h1 className="dash-title dash-title--orbit">
-            Bonjour, {user.username ?? 'Opérateur'} 👋
+            Hello, {user.username ?? 'Operator'} 👋
           </h1>
           <p className="dash-subtitle dash-subtitle--orbit">
-            Glissez les widgets pour réorganiser votre espace de travail. La disposition est sauvegardée automatiquement.
+            Drag widgets to reorganize your workspace. Layout is saved automatically.
           </p>
           <div className="dash-header-chips">
             <span className="dash-header-chip">
               <span className="dash-header-chip-dot" style={{ background: '#6366f1' }} />
               {widgetData.projectsLoading
                 ? '…'
-                : `${widgetData.activeProjectCount} projet${widgetData.activeProjectCount !== 1 ? 's' : ''} actif${widgetData.activeProjectCount !== 1 ? 's' : ''}`}
+                : `${widgetData.activeProjectCount} active project${widgetData.activeProjectCount !== 1 ? 's' : ''}`}
             </span>
             <span className="dash-header-chip">
               <span className="dash-header-chip-dot" style={{ background: '#10b981' }} />
@@ -244,14 +244,14 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
                 ? '…'
                 : (() => {
                     const t = Object.values(widgetData.tasksByStatus).reduce((a, b) => a + b, 0);
-                    return `${t} tâche${t !== 1 ? 's' : ''}`;
+                    return `${t} task${t !== 1 ? 's' : ''}`;
                   })()}
             </span>
             <span className="dash-header-chip">
               <span className="dash-header-chip-dot" style={{ background: '#f59e0b' }} />
               {widgetData.teamsLoading
                 ? '…'
-                : `${widgetData.teamCount} équipe${widgetData.teamCount !== 1 ? 's' : ''}`}
+                : `${widgetData.teamCount} team${widgetData.teamCount !== 1 ? 's' : ''}`}
             </span>
           </div>
         </div>
@@ -272,10 +272,10 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
             onChange={handleImageFileChange}
           />
           <button type="button" className="dash-reset-btn dash-reset-btn--orbit" onClick={handleResetLayout}>
-            Réinitialiser la grille
+            Reset layout
           </button>
           <button type="button" className="dash-new-btn dash-new-btn--orbit" onClick={() => navigate('/projects')}>
-            + Nouveau projet
+            + New project
           </button>
         </div>
       </div>

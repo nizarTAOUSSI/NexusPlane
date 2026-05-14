@@ -3,13 +3,13 @@ import logo from '../assets/logoNexus.png';
 import { Link } from 'react-router-dom';
 
 const LINKS = [
-    { label: 'Fonctionnalités', href: '#' },
-    { label: 'Tarifs', href: '#' },
+    { label: 'Features', href: '#' },
+    { label: 'Pricing', href: '#' },
     { label: 'Changelog', href: '#' },
-    { label: 'À propos', href: '#' },
+    { label: 'About', href: '#' },
     { label: 'Blog', href: '#' },
-    { label: 'Confidentialité', href: '#' },
-    { label: 'CGU', href: '#' },
+    { label: 'Privacy', href: '#' },
+    { label: 'Terms', href: '#' },
 ];
 
 const SOCIALS = [
@@ -62,7 +62,7 @@ export default function Footer() {
                         </div>
                         <div>
                             <p className="text-slate-100 font-bold text-xl tracking-tight">NexusPlan</p>
-                            <p className="text-slate-400 text-sm mt-1">Gestion de projet intelligente.</p>
+                            <p className="text-slate-400 text-sm mt-1">Intelligent project management.</p>
                         </div>
                     </div>
 
@@ -72,7 +72,7 @@ export default function Footer() {
                     >
                         <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent translate-x-full group-hover:translate-x-full transition-transform duration-500" />
                         <span className="relative flex items-center gap-2">
-                            Démarrer gratuitement
+                            Get started for free
                             <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                             </svg>
@@ -109,7 +109,7 @@ export default function Footer() {
 
                 <div className="flex items-center justify-center pt-8 border-t border-white/5">
                     <p className="text-xs text-slate-500 font-medium tracking-wide">
-                        © 2026 NexusPlan. Tous droits réservés.
+                        &copy; 2026 NexusPlan. All rights reserved.
                     </p>
                 </div>
 

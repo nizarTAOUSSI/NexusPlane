@@ -48,7 +48,7 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
       const short = raw.includes('llama') ? 'Llama 3.3' : raw.includes('gemini') ? 'Gemini' : raw.split('/').pop() ?? 'AI';
       setModelLabel(short);
     } catch {
-      setError("Impossible de charger le résumé IA. Vérifiez votre connexion.");
+      setError("Unable to load AI summary. Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -61,7 +61,7 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
   }, [dataKey]);
 
   return (
-    <WidgetShell title="Résumé IA" icon={<Sparkles size={14} style={{ color: '#8b5cf6' }} />}>
+    <WidgetShell title="AI Summary" icon={<Sparkles size={14} style={{ color: '#8b5cf6' }} />}>
       <div className="dash-widget-accent" style={{ background: 'linear-gradient(90deg, #8b5cf6, #6366f1bb)' }} />
 
       <div className="dash-ai-body">
@@ -82,7 +82,7 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
         )}
 
         {!loading && !error && !summary && (
-          <p className="dash-widget-muted">Aucun résumé disponible.</p>
+          <p className="dash-widget-muted">No summary available.</p>
         )}
       </div>
 
@@ -95,11 +95,11 @@ const DashboardAISummaryCard: React.FC<DashboardAISummaryCardProps> = ({
           className="dash-ai-refresh-btn"
           onClick={fetchSummary}
           disabled={loading}
-          title="Regénérer le résumé"
-          aria-label="Regénérer le résumé IA"
+          title="Regenerate summary"
+          aria-label="Regenerate AI summary"
         >
           <RefreshCw size={12} className={loading ? 'dash-ai-spin' : ''} />
-          Regénérer
+          Regenerate
         </button>
       </div>
     </WidgetShell>

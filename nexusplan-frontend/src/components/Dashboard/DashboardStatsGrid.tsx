@@ -44,12 +44,12 @@ const DashboardStatsGrid: React.FC<DashboardStatsGridProps> = ({
   projectCount,
   loading = false,
 }) => (
-  <WidgetShell title="Vue d'ensemble" icon={<FolderKanban size={14} />}>
+  <WidgetShell title="Overview" icon={<FolderKanban size={14} />}>
     <div className="dash-widget-accent" style={{ background: 'linear-gradient(90deg, #6366f1, #8b5cf6bb)' }} />
     <div className="dash-stat-chips-row">
       <KpiChip
-        label="Tâches actives"
-        subtext="assignées & en cours"
+        label="Active tasks"
+        subtext="assigned & in progress"
         value={activeTasks}
         icon={<ListTodo size={18} />}
         accent="#6366f1"
@@ -57,8 +57,8 @@ const DashboardStatsGrid: React.FC<DashboardStatsGridProps> = ({
       />
       <div className="dash-stat-chip-divider" />
       <KpiChip
-        label="En retard"
-        subtext={overdueTasks > 0 ? 'Attention requise' : 'Tout à jour ✓'}
+        label="Overdue"
+        subtext={overdueTasks > 0 ? 'Attention required' : 'All up to date ✓'}
         value={overdueTasks}
         icon={<AlertCircle size={18} />}
         accent={overdueTasks > 0 ? '#ef4444' : '#10b981'}
@@ -66,8 +66,8 @@ const DashboardStatsGrid: React.FC<DashboardStatsGridProps> = ({
       />
       <div className="dash-stat-chip-divider" />
       <KpiChip
-        label="Projets actifs"
-        subtext={loading ? '…' : `sur ${projectCount} au total`}
+        label="Active projects"
+        subtext={loading ? '…' : `out of ${projectCount} total`}
         value={activeProjects}
         icon={<FolderKanban size={18} />}
         accent="#10b981"

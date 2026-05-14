@@ -41,7 +41,7 @@ export default function CTASection() {
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50/80 border border-blue-100/80 backdrop-blur-sm shadow-sm">
               <BsStars className="text-blue-600 w-4 h-4" />
               <span className="text-blue-700 text-sm font-semibold tracking-wide">
-                Commencer l'aventure
+                Start the journey
               </span>
             </div>
           </motion.div>
@@ -50,10 +50,10 @@ export default function CTASection() {
             variants={itemVariants}
             className="text-3xl sm:text-5xl md:text-6xl lg:text-[4.5rem] font-extrabold text-slate-900 tracking-tight leading-[1.1] mb-6"
           >
-            Prêt à accélérer{' '}
+            Ready to accelerate{' '}
             <br className="hidden sm:block" />
             <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-600 via-blue-500 to-cyan-500">
-              votre équipe ?
+              your team?
             </span>
           </motion.h2>
 
@@ -61,7 +61,7 @@ export default function CTASection() {
             variants={itemVariants}
             className="text-slate-500 text-lg md:text-xl leading-relaxed mb-10 max-w-2xl mx-auto font-medium"
           >
-            Rejoignez plus de <span className="text-slate-800 font-semibold">5 000 équipes</span> qui livrent plus vite avec NexusPlan. Gratuit 14 jours, sans carte bancaire.
+            Join more than <span className="text-slate-800 font-semibold">5,000 teams</span> shipping faster with NexusPlan. Free for 14 days, no credit card required.
           </motion.p>
 
           <motion.div
@@ -71,13 +71,13 @@ export default function CTASection() {
             <button className="group relative w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold rounded-2xl px-8 py-4 overflow-hidden transition-all duration-200 active:scale-95 shadow-[0_8px_30px_rgb(5,104,250,0.25)] hover:shadow-[0_8px_30px_rgb(5,104,250,0.4)]">
               <div className="absolute inset-0 bg-linear-to-r from-transparent via-white/10 to-transparent translate-x-full group-hover:translate-x-full transition-transform duration-500" />
               <span className="relative flex items-center gap-2">
-                Démarrer gratuitement
+                Get started for free
                 <FiArrowRight className="group-hover:translate-x-1 transition-transform duration-200" />
               </span>
             </button>
 
             <button className="w-full sm:w-auto inline-flex items-center justify-center gap-2 text-slate-600 font-semibold bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl px-8 py-4 transition-all duration-200 active:scale-95 shadow-sm hover:shadow-md">
-              Voir une démo
+              Watch a demo
             </button>
           </motion.div>
 
@@ -85,7 +85,7 @@ export default function CTASection() {
             variants={itemVariants}
             className="flex flex-wrap items-center justify-center gap-x-8 gap-y-4 mt-14"
           >
-            {['Aucune carte requise', 'Annulation libre', 'Support inclus'].map((item) => (
+            {['No card required', 'Cancel anytime', 'Support included'].map((item) => (
               <div key={item} className="flex items-center gap-2 text-sm font-medium text-slate-500">
                 <div className="flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100/50">
                   <FiCheck className="w-3.5 h-3.5 text-emerald-600" />

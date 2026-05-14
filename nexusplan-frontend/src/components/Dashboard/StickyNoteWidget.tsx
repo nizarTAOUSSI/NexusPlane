@@ -76,7 +76,7 @@ const StickyNoteWidget: React.FC<StickyNoteWidgetProps> = ({ widgetId }) => {
               />
             ))}
             <span className="dash-widget-muted" style={{ fontSize: 10.5, marginLeft: 'auto' }}>
-              Ctrl+↩ pour confirmer
+              Ctrl+↩ to confirm
             </span>
           </div>
 
@@ -86,7 +86,7 @@ const StickyNoteWidget: React.FC<StickyNoteWidgetProps> = ({ widgetId }) => {
             style={{ background: draftMeta.bg, color: draftMeta.ink }}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Écrivez votre note…"
+            placeholder="Write your note here..."
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirm();
             }}
@@ -108,14 +108,14 @@ const StickyNoteWidget: React.FC<StickyNoteWidgetProps> = ({ widgetId }) => {
           {content ? (
             <p className="dash-sticky-handwriting">{content}</p>
           ) : (
-            <p className="dash-sticky-placeholder">Double-cliquez pour écrire…</p>
+            <p className="dash-sticky-placeholder">Double-click to write…</p>
           )}
           <button
             type="button"
             className="dash-sticky-edit-btn"
             onClick={(e) => { e.stopPropagation(); startEdit(); }}
-            title="Modifier"
-            aria-label="Modifier la note"
+            title="Edit"
+            aria-label="Edit note"
           >
             <Pencil size={11} />
           </button>

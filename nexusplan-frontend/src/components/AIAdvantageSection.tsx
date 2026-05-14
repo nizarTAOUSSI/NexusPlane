@@ -41,9 +41,9 @@ function StatCounter({ value, suffix, label }: { value: number; suffix: string; 
 const CARDS = [
   {
     num: '01',
-    title: 'Analyse Prédictive',
-    subtitle: 'de Risques',
-    desc: "Identifie les risques avant qu'ils ne deviennent des problèmes — retards, conflits de ressources, dépendances critiques.",
+    title: 'Predictive Risk',
+    subtitle: 'Analysis',
+    desc: "Identifies risks before they become problems — delays, resource conflicts, critical dependencies.",
     from: 'from-blue-500/10',
     iconColor: 'text-blue-600',
     badge: 'bg-blue-50 text-blue-700 border-blue-100',
@@ -55,9 +55,9 @@ const CARDS = [
   },
   {
     num: '02',
-    title: 'Allocation Intelligente',
-    subtitle: 'des Ressources',
-    desc: "Optimise les affectations d'équipe en temps réel selon la disponibilité, les compétences et la charge de travail.",
+    title: 'Smart Resource',
+    subtitle: 'Allocation',
+    desc: "Optimizes team assignments in real time based on availability, skills, and workload.",
     from: 'from-emerald-500/10',
     iconColor: 'text-emerald-600',
     badge: 'bg-emerald-50 text-emerald-700 border-emerald-100',
@@ -69,9 +69,9 @@ const CARDS = [
   },
   {
     num: '03',
-    title: 'Collaboration',
-    subtitle: "Boostée par l'IA",
-    desc: "Des suggestions contextuelles et des insights automatiques pour accélérer la prise de décision collective.",
+    title: 'AI-Boosted',
+    subtitle: 'Collaboration',
+    desc: "Contextual suggestions and automatic insights to accelerate collective decision-making.",
     from: 'from-violet-500/10',
     iconColor: 'text-violet-600',
     badge: 'bg-violet-50 text-violet-700 border-violet-100',
@@ -110,7 +110,7 @@ export default function AIAdvantageSection() {
           <motion.div variants={item} className="mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50/80 border border-blue-100/80 backdrop-blur-sm shadow-sm">
               <BsStars className="text-blue-600 w-4 h-4" />
-              <span className="text-blue-700 text-sm font-semibold tracking-wide">Intelligence Artificielle</span>
+              <span className="text-blue-700 text-sm font-semibold tracking-wide">Artificial Intelligence</span>
             </div>
           </motion.div>
 
@@ -119,17 +119,17 @@ export default function AIAdvantageSection() {
               variants={item}
               className="text-3xl sm:text-4xl lg:text-[3.4rem] font-extrabold text-slate-900 leading-[1.1] tracking-tight max-w-2xl"
             >
-              L'IA qui anticipe,{' '}
+              The AI that anticipates,{' '}
               <br />
               <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-600 via-blue-500 to-cyan-500">
-                pas qui réagit.
+                not just reacts.
               </span>
             </motion.h2>
             <motion.p
               variants={item}
               className="text-slate-500 text-base max-w-sm leading-relaxed font-medium"
             >
-              NexusPlan ne suit pas vos projets — il les anticipe et les optimise à chaque instant.
+              NexusPlan doesn't just track your projects — it anticipates and optimizes them at every moment.
             </motion.p>
           </div>
 
@@ -164,10 +164,10 @@ export default function AIAdvantageSection() {
             variants={item}
             className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-8 py-10 border-t border-slate-100"
           >
-            <StatCounter value={5000} suffix="+" label="Équipes actives" />
-            <StatCounter value={98} suffix="%" label="Satisfaction client" />
-            <StatCounter value={40} suffix="%" label="Réunions en moins" />
-            <StatCounter value={3} suffix="x" label="Plus rapide" />
+            <StatCounter value={5000} suffix="+" label="Active teams" />
+            <StatCounter value={98} suffix="%" label="Customer satisfaction" />
+            <StatCounter value={40} suffix="%" label="Fewer meetings" />
+            <StatCounter value={3} suffix="x" label="Faster delivery" />
           </motion.div>
         </motion.div>
       </div>

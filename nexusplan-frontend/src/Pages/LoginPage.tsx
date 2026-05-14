@@ -43,7 +43,7 @@ const LoginPage = () => {
             navigate('/dashboard');
         } catch (error) {
             console.error("Login failed", error);
-            alert("Identifiants incorrects");
+            alert("Invalid credentials");
         } finally {
             setIsLoading(false);
         }
@@ -54,10 +54,10 @@ const LoginPage = () => {
             <div className="hidden lg:flex w-[55%] bg-[#f8f9fa] p-12 flex-col h-[95vh] rounded-[8%] shadow-xl m-5 relative overflow-hidden">
                 <div className="z-10 relative mt-8 mb-8">
                     <h1 className="text-4xl xl:text-[2.75rem] font-extrabold text-slate-900 leading-[1.1] mb-5 tracking-tight">
-                        Gérez vos projets à la vitesse <br /> de la pensée. <br /> Ensemble.
+                        Manage projects at <br />  the speedof thought <br />  together.
                     </h1>
                     <p className="text-slate-500 text-lg max-w-sm leading-relaxed">
-                        La première plateforme collaborative en temps réel propulsée par l'IA.
+                        The first AI-powered real-time collaborative platform.
                     </p>
                     <BackBtn link={"/"} />
                 </div>
@@ -75,8 +75,8 @@ const LoginPage = () => {
                         <img src={logo} alt="NexusPlan Logo" className="w-10 h-10 object-contain" />
                         <span className="text-2xl font-bold text-slate-900 tracking-tight">NexusPlan</span>
                     </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-1.5">Bienvenue sur NexusPlan</h2>
-                    <p className="text-slate-500 text-sm font-medium">Connectez-vous à votre compte</p>
+                    <h2 className="text-xl font-bold text-slate-900 mb-1.5">Welcome to NexusPlan</h2>
+                    <p className="text-slate-500 text-sm font-medium">Sign in to your account</p>
                 </div>
 
                 <div className="w-full max-w-sm text-center">
@@ -86,7 +86,7 @@ const LoginPage = () => {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Adresse e-mail"
+                                placeholder="Email address"
                                 className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
                             />
                         </div>
@@ -95,7 +95,7 @@ const LoginPage = () => {
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Mot de passe"
+                                placeholder="Password"
                                 className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
                             />
                             <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
@@ -108,13 +108,13 @@ const LoginPage = () => {
 
                         <div className="pt-1">
                             <a href="#" className="text-sm font-semibold text-slate-700 hover:text-blue-600 transition-colors">
-                                Mot de passe oublié ?
+                                Forgot password?
                             </a>
                         </div>
 
                         <div className="pt-2">
                             <button type="submit" disabled={isLoading} className="w-full bg-[#0d6efd] text-white rounded-xl py-3.5 font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70">
-                                {isLoading ? 'Chargement...' : 'Se connecter'}
+                                {isLoading ? 'Loading...' : 'Sign in'}
                             </button>
                         </div>
                     </form>
@@ -124,7 +124,7 @@ const LoginPage = () => {
                             <div className="w-full border-t border-gray-200"></div>
                         </div>
                         <div className="relative flex justify-center text-sm">
-                            <span className="px-4 bg-white text-gray-500 font-medium">Ou</span>
+                            <span className="px-4 bg-white text-gray-500 font-medium">Or</span>
                         </div>
                     </div>
 
@@ -139,7 +139,7 @@ const LoginPage = () => {
                     </div>
 
                     <p className="text-sm text-slate-500 mt-8 font-medium">
-                        Vous n'avez pas de compte ? <a href="/signup" onClick={(e) => { e.preventDefault(); navigate('/signup'); }} className="text-slate-900 font-bold hover:underline decoration-2 underline-offset-2">S'inscrire</a>
+                        Don't have an account? <a href="/signup" onClick={(e) => { e.preventDefault(); navigate('/signup'); }} className="text-slate-900 font-bold hover:underline decoration-2 underline-offset-2">Sign up</a>
                     </p>
 
                 </div>

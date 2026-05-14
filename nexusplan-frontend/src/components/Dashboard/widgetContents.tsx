@@ -85,11 +85,11 @@ function projColor(id: string | number): string {
 export const KpiProjectsWidget: React.FC<{ data: DashboardWidgetData }> = ({ data }) => {
   const pct = data.projectsLoading ? 0 : Math.round((data.activeProjectCount / Math.max(data.projectCount, 1)) * 100);
   return (
-    <WidgetShell title="Projets" icon={<FolderKanban size={14} />}>
+    <WidgetShell title="Projects" icon={<FolderKanban size={14} />}>
       {accent('#6366f1')}
       <div className="dash-kpi-main">
         <div>
-          <p className="dash-widget-kpi-label">Projets actifs</p>
+          <p className="dash-widget-kpi-label">Active projects</p>
           <p className="dash-widget-kpi-value">
             {data.projectsLoading ? '—' : data.activeProjectCount}
           </p>
@@ -106,28 +106,28 @@ export const KpiTasksWidget: React.FC<{ data: DashboardWidgetData }> = ({ data }
   const total = Object.values(data.tasksByStatus).reduce((a, b) => a + b, 0);
   const pct = data.tasksLoading ? 0 : Math.round((done / Math.max(total, 1)) * 100);
   return (
-    <WidgetShell title="Tâches" icon={<ListTodo size={14} />}>
+    <WidgetShell title="Tasks" icon={<ListTodo size={14} />}>
       {accent('#10b981')}
       <div className="dash-kpi-main">
         <div>
-          <p className="dash-widget-kpi-label">Terminées</p>
+          <p className="dash-widget-kpi-label">Completed</p>
           <p className="dash-widget-kpi-value" style={{ color: '#059669' }}>
             {data.tasksLoading ? '—' : done}
           </p>
         </div>
         {!data.tasksLoading && <MiniArc pct={pct} color="#10b981" />}
       </div>
-      <StatRow label="Assignées" value={data.tasksLoading ? '—' : total} />
+      <StatRow label="Assigned" value={data.tasksLoading ? '—' : total} />
     </WidgetShell>
   );
 };
 
 export const KpiTeamsWidget: React.FC<{ data: DashboardWidgetData }> = ({ data }) => (
-  <WidgetShell title="Équipes" icon={<Users size={14} />}>
+  <WidgetShell title="Teams" icon={<Users size={14} />}>
     {accent('#f59e0b')}
     <div className="dash-kpi-main">
       <div>
-        <p className="dash-widget-kpi-label">Mes équipes</p>
+        <p className="dash-widget-kpi-label">My teams</p>
         <p className="dash-widget-kpi-value" style={{ color: '#d97706' }}>
           {data.teamsLoading ? '—' : data.teamCount}
         </p>
@@ -136,7 +136,7 @@ export const KpiTeamsWidget: React.FC<{ data: DashboardWidgetData }> = ({ data }
         <MiniArc pct={data.teamCount > 0 ? Math.min(100, data.teamCount * 20) : 0} color="#f59e0b" />
       )}
     </div>
-    <StatRow label="Type" value="Collaboratif" />
+    <StatRow label="Type" value="Collaborative" />
   </WidgetShell>
 );
 
@@ -145,12 +145,12 @@ export const KpiChatWidget: React.FC = () => (
     {accent('#3b82f6')}
     <div className="dash-kpi-main">
       <div>
-        <p className="dash-widget-kpi-label">Salons actifs</p>
+        <p className="dash-widget-kpi-label">Active rooms</p>
         <p className="dash-widget-kpi-value" style={{ color: '#2563eb' }}>—</p>
       </div>
       <MiniArc pct={0} color="#3b82f6" />
     </div>
-    <StatRow label="Statut" value={<span style={{ color: '#f59e0b', fontWeight: 700 }}>Bientôt</span>} />
+    <StatRow label="Status" value={<span style={{ color: '#f59e0b', fontWeight: 700 }}>Coming soon</span>} />
   </WidgetShell>
 );
 
@@ -159,15 +159,15 @@ export const KpiChatWidget: React.FC = () => (
 ══════════════════════════════════════ */
 
 export const RecentProjectsWidget: React.FC<{ data: DashboardWidgetData }> = ({ data }) => (
-  <WidgetShell title="Projets récents" icon={<FolderKanban size={14} />}>
+  <WidgetShell title="Recent projects" icon={<FolderKanban size={14} />}>
     {accent('#6366f1')}
-    {data.projectsLoading && <p className="dash-widget-muted">Chargement…</p>}
+    {data.projectsLoading && <p className="dash-widget-muted">Loading…</p>}
     {!data.projectsLoading && data.recentProjects.length === 0 && (
       <div className="dash-widget-empty">
         <FolderKanban size={28} className="dash-empty-icon" />
-        <p>Aucun projet trouvé</p>
+        <p>No projects found</p>
         <Link to="/projects" className="dash-widget-link">
-          Créer un projet <ArrowRight size={12} />
+          Create a project <ArrowRight size={12} />
         </Link>
       </div>
     )}
@@ -185,7 +185,7 @@ export const RecentProjectsWidget: React.FC<{ data: DashboardWidgetData }> = ({ 
               </span>
               <span className="dash-widget-list-name">{p.name}</span>
               <span className="dash-widget-list-meta">
-                {p.status === 'ACTIVE' ? 'Actif' : p.status}
+                {p.status === 'ACTIVE' ? 'Active' : p.status}
               </span>
             </Link>
           </li>
@@ -201,10 +201,10 @@ export const RecentProjectsWidget: React.FC<{ data: DashboardWidgetData }> = ({ 
 
 const STATUS_ORDER = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.REVIEW, TaskStatus.DONE];
 const STATUS_LABEL: Record<string, string> = {
-  [TaskStatus.TODO]:        'À faire',
-  [TaskStatus.IN_PROGRESS]: 'En cours',
-  [TaskStatus.REVIEW]:      'Révision',
-  [TaskStatus.DONE]:        'Terminé',
+  [TaskStatus.TODO]:        'To Do',
+  [TaskStatus.IN_PROGRESS]: 'In Progress',
+  [TaskStatus.REVIEW]:      'Review',
+  [TaskStatus.DONE]:        'Done',
 };
 const STATUS_COLOR: Record<string, string> = {
   [TaskStatus.TODO]:        '#9898b8',
@@ -214,9 +214,9 @@ const STATUS_COLOR: Record<string, string> = {
 };
 
 export const TaskPipelineWidget: React.FC<{ data: DashboardWidgetData }> = ({ data }) => (
-  <WidgetShell title="Pipeline des tâches" icon={<TrendingUp size={14} />}>
+  <WidgetShell title="Task pipeline" icon={<TrendingUp size={14} />}>
     {accent('#a855f7')}
-    {data.tasksLoading && <p className="dash-widget-muted">Chargement…</p>}
+    {data.tasksLoading && <p className="dash-widget-muted">Loading…</p>}
     {!data.tasksLoading && (
       <div className="dash-widget-bars">
         {STATUS_ORDER.map((st) => {
@@ -247,13 +247,13 @@ export const TaskPipelineWidget: React.FC<{ data: DashboardWidgetData }> = ({ da
 ══════════════════════════════════════ */
 
 const ACTIVITY_EVENTS = [
-  { t: "Invitation d'équipe reçue",  d: 'En attente d\'acceptation',       time: 'il y a 2 min',  color: '#6366f1' },
-  { t: 'Mise à jour de projet',       d: 'Synchronisation temps réel active', time: 'il y a 8 min',  color: '#10b981' },
-  { t: 'Nouvelle tâche assignée',     d: 'Connexion WebSocket établie',      time: 'il y a 15 min', color: '#f59e0b' },
+  { t: 'Team invitation received',  d: 'Pending acceptance',              time: '2 min ago',  color: '#6366f1' },
+  { t: 'Project update',            d: 'Real-time sync active',           time: '8 min ago',  color: '#10b981' },
+  { t: 'New task assigned',         d: 'WebSocket connection established', time: '15 min ago', color: '#f59e0b' },
 ];
 
 export const ActivityFeedWidget: React.FC = () => (
-  <WidgetShell title="Activité récente" icon={<TrendingUp size={14} />}>
+  <WidgetShell title="Recent activity" icon={<TrendingUp size={14} />}>
     {accent('#6366f1')}
     <ul className="dash-widget-activity">
       {ACTIVITY_EVENTS.map((row, i) => (
@@ -276,14 +276,14 @@ export const ActivityFeedWidget: React.FC = () => (
 ══════════════════════════════════════ */
 
 const QUICK_LINKS = [
-  { to: '/projects', label: 'Projets',  icon: <FolderKanban size={13} /> },
-  { to: '/tasks',    label: 'Tâches',   icon: <ListTodo size={13} /> },
-  { to: '/teams',    label: 'Équipes',  icon: <Users size={13} /> },
+  { to: '/projects', label: 'Projects', icon: <FolderKanban size={13} /> },
+  { to: '/tasks',    label: 'Tasks',    icon: <ListTodo size={13} /> },
+  { to: '/teams',    label: 'Teams',    icon: <Users size={13} /> },
   { to: '/chat',     label: 'Chat',     icon: <MessageCircle size={13} /> },
 ];
 
 export const QuickLinksWidget: React.FC = () => (
-  <WidgetShell title="Accès rapides" icon={<Sparkles size={14} />}>
+  <WidgetShell title="Quick links" icon={<Sparkles size={14} />}>
     {accent('#f59e0b')}
     <div className="dash-widget-links">
       {QUICK_LINKS.map(({ to, label, icon }) => (
