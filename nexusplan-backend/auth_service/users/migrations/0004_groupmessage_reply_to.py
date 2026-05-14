@@ -5,7 +5,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("users", "0003_merge_messaging_migrations"),
+        ("users", "0003_user_online_status"),
     ]
 
     operations = [

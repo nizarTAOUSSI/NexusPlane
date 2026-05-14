@@ -66,7 +66,7 @@ services:
     build:
       context: ./auth_service
     command: >
-      sh -c "until python manage.py migrate users 0002_add_messaging_models --fake 2>/dev/null; do
+      sh -c "until python -c 'import django, os; os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\", \"auth_service.settings\"); django.setup(); from django.db import connection; connection.ensure_connection()' 2>/dev/null; do
                echo '[auth] DB not ready, retrying in 3s...'; sleep 3;
              done &&
              python manage.py migrate &&
