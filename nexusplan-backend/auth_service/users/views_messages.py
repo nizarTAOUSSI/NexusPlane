@@ -219,3 +219,54 @@ def mark_dm_read(request):
         sender_id=sender_id, receiver_id=reader_id, is_read=False
     ).update(is_read=True)
     return Response({"status": "ok", "marked": updated})
+
+
+def _serialize_notification(n: Notification) -> dict:
+    from_info = None
+    if n.from_user_id:
+        fu = n.from_user
+        from_info = {
+            "id": str(fu.id),
+            "username": fu.username,
+            "email": fu.email,
+            "avatar": fu.avatar,
+        }
+    return {
+        "id": str(n.id),
+        "type": n.type,
+        "data": n.data if isinstance(n.data, dict) else {},
+        "is_read": n.is_read,
+        "created_at": n.created_at.isoformat(),
+        "from_user": from_info,
+    }
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def notifications_list(request):
+    """Return recent notifications for the authenticated user."""
+    limit = int(request.query_params.get("limit", 50))
+    limit = max(1, min(limit, 100))
+    qs = (
+        Notification.objects.filter(user=request.user)
+        .select_related("from_user")
+        .order_by("-created_at")[:limit]
+    )
+    return Response([_serialize_notification(n) for n in qs])
+
+
+@api_view(["PATCH"])
+@permission_classes([IsAuthenticated])
+def notification_mark_read(request, notif_id):
+    n = get_object_or_404(Notification, id=notif_id, user=request.user)
+    if not n.is_read:
+        n.is_read = True
+        n.save(update_fields=["is_read"])
+    return Response(_serialize_notification(n))
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def notifications_mark_all_read(request):
+    updated = Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return Response({"marked": updated})

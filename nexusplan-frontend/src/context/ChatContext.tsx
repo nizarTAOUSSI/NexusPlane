@@ -1,9 +1,12 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { useNavigate } from 'react-router-dom';
 import { teamsApi, type TeamMember } from '../teamsApi';
 import api from '../api';
 import { useAuth } from './AuthContext';
+import { messagesApi, type AppNotification } from '../messagesApi';
+
+export type { AppNotification } from '../messagesApi';
 
 const SOCKET_URL = (import.meta as any).env?.VITE_CHAT_URL || 'https://nexusplane.duckdns.org';
 
@@ -54,6 +57,11 @@ interface ChatContextValue {
   connected: boolean;
   activeRoomId: string | null;
   setActiveRoomId: (id: string | null) => void;
+  notifications: AppNotification[];
+  notificationUnread: number;
+  refreshNotifications: () => Promise<void>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
 }
 
 const ChatContext = createContext<ChatContextValue>({
@@ -67,7 +75,40 @@ const ChatContext = createContext<ChatContextValue>({
   connected: false,
   activeRoomId: null,
   setActiveRoomId: () => {},
+  notifications: [],
+  notificationUnread: 0,
+  refreshNotifications: async () => {},
+  markNotificationRead: async () => {},
+  markAllNotificationsRead: async () => {},
 });
+
+function normalizeSocketNotification(payload: Record<string, unknown>): AppNotification | null {
+  if (!payload?.id) return null;
+  const fromInfo = payload.from_user_info as Record<string, unknown> | undefined;
+  let from_user: AppNotification['from_user'] = null;
+  if (fromInfo && typeof fromInfo === 'object') {
+    from_user = {
+      id: String(fromInfo.id ?? ''),
+      username: String(fromInfo.username ?? ''),
+      email: String(fromInfo.email ?? ''),
+      avatar: (fromInfo.avatar as string | null) ?? null,
+    };
+  } else if (payload.from_user) {
+    const id = String(payload.from_user);
+    from_user = { id, username: id, email: '', avatar: null };
+  }
+  const rawData = payload.data;
+  const data: Record<string, unknown> =
+    typeof rawData === 'string' ? { message: rawData } : (rawData as Record<string, unknown>) ?? {};
+  return {
+    id: String(payload.id),
+    type: String(payload.type ?? 'message'),
+    data,
+    is_read: !!payload.is_read,
+    created_at: String(payload.created_at ?? new Date().toISOString()),
+    from_user,
+  };
+}
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, token } = useAuth() as any;
@@ -78,6 +119,8 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [connected, setConnected] = useState(false);
   const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<ToastNotif[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [socket, setSocket] = useState<Socket | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const activeRoomIdRef = useRef<string | null>(null);
   const roomsRef = useRef<ChatRoom[]>([]);
@@ -110,6 +153,44 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Keep ref in sync so the socket handler always has the latest version
   useEffect(() => { updateRoomLastMsgRef.current = updateRoomLastMsg; }, [updateRoomLastMsg]);
 
+  const notificationUnread = useMemo(
+    () => notifications.filter(n => !n.is_read).length,
+    [notifications],
+  );
+
+  const refreshNotifications = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const list = await messagesApi.listNotifications({ limit: 50 });
+      setNotifications(list);
+    } catch {
+      /* ignore */
+    }
+  }, [user?.id]);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    try {
+      const updated = await messagesApi.markNotificationRead(id);
+      setNotifications(prev => prev.map(n => (n.id === id ? updated : n)));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const markAllNotificationsRead = useCallback(async () => {
+    try {
+      await messagesApi.markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    void refreshNotifications();
+  }, [user?.id, refreshNotifications]);
+
   // Auto-join ALL rooms whenever socket is connected + rooms are loaded.
   // This ensures receiveMessage events are delivered even when ChatPage is not open.
   // Also handles reconnects: `connected` flips false→true, re-running this effect.
@@ -132,10 +213,22 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const sock = io(SOCKET_URL, { reconnectionAttempts: 5, timeout: 5000 });
     socketRef.current = sock;
+    setSocket(sock);
+
+    const onReceiveNotification = (payload: Record<string, unknown>) => {
+      const row = normalizeSocketNotification(payload);
+      if (!row) return;
+      setNotifications(prev => {
+        if (prev.some(n => n.id === row.id)) return prev;
+        return [row, ...prev];
+      });
+      playNotificationSound();
+    };
 
     sock.on('connect', () => {
       setConnected(true);
       sock.emit('userOnline', { userId: user.id, token });
+      void messagesApi.listNotifications({ limit: 50 }).then(setNotifications).catch(() => {});
     });
     sock.on('disconnect', () => setConnected(false));
 
@@ -158,9 +251,13 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     });
 
+    sock.on('receiveNotification', onReceiveNotification);
+
     return () => {
+      sock.off('receiveNotification', onReceiveNotification);
       sock.disconnect();
       socketRef.current = null;
+      setSocket(null);
       setConnected(false);
     };
   }, [user?.id, token]);
@@ -207,9 +304,9 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             .filter(r => r.type === 'group')
             .map(r => r.id)
             .join(',');
-          const res = await api.get(
-            `messages/conversations/recent/${groupIds ? `?group_ids=${encodeURIComponent(groupIds)}` : ''}`
-          );
+          const recentPath =
+            `messages/conversations/recent${groupIds ? `?group_ids=${encodeURIComponent(groupIds)}` : ''}`;
+          const res = await api.get(recentPath);
           const recent = res.data as Array<{
             type: 'dm' | 'group';
             roomId: string;
@@ -244,10 +341,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRoomMembers,
         updateRoomLastMsg,
         roomsLoaded,
-        socket: socketRef.current,
+        socket,
         connected,
         activeRoomId,
         setActiveRoomId,
+        notifications,
+        notificationUnread,
+        refreshNotifications,
+        markNotificationRead,
+        markAllNotificationsRead,
       }}
     >
       {children}

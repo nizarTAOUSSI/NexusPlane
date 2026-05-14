@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
 import { useChatContext } from '../context/ChatContext';
+import { useGlobalSearch } from '../context/GlobalSearchContext';
 import logo from '../assets/logoNexus.png';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -124,18 +125,56 @@ const OnlineUsersAvatars: React.FC = () => {
   );
 };
 
+function notificationPreview(n: { type: string; data: Record<string, unknown> }): string {
+  const msg = n.data?.message;
+  if (typeof msg === 'string') return msg.length > 72 ? `${msg.slice(0, 72)}…` : msg;
+  return n.type.replace(/_/g, ' ');
+}
+
 export const TopNavbar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
   const [userOpen, setUserOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifWrapRef = useRef<HTMLDivElement>(null);
+
+  const {
+    query,
+    setQuery,
+    setOpen: setSearchOpen,
+    toolbarInputRef,
+    setFocusSource,
+  } = useGlobalSearch();
+
+  const {
+    notifications,
+    notificationUnread,
+    markNotificationRead,
+    markAllNotificationsRead,
+  } = useChatContext();
 
   const segments = location.pathname.split('/').filter(Boolean);
 
+  useEffect(() => {
+    if (!notifOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (notifWrapRef.current?.contains(e.target as Node)) return;
+      setNotifOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [notifOpen]);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
+  };
+
+  const openNotifFrom = (fromId: string | undefined) => {
+    setNotifOpen(false);
+    if (fromId) navigate(`/chat/${fromId}`);
+    else navigate('/chat');
   };
 
   return (
@@ -173,16 +212,89 @@ export const TopNavbar: React.FC = () => {
       </div>
 
       <div className="nb-right">
-        <label className="nb-search">
+        <label className="nb-search" data-gs-trigger>
           <Search size={14} className="nb-search-icon" strokeWidth={2} />
-          <input type="text" placeholder="Search anything…" className="nb-search-input" />
+          <input
+            ref={toolbarInputRef}
+            type="text"
+            placeholder="Search anything…"
+            className="nb-search-input"
+            value={query}
+            onChange={e => {
+              setQuery(e.target.value);
+              setSearchOpen(true);
+              setFocusSource('toolbar');
+            }}
+            onFocus={() => {
+              setSearchOpen(true);
+              setFocusSource('toolbar');
+            }}
+          />
           <kbd className="nb-search-kbd">⌘K</kbd>
         </label>
 
-        <button className="nb-icon-btn" title="Notifications">
-          <Bell size={18} strokeWidth={2} />
-          <span className="nb-badge">3</span>
-        </button>
+        <div className="nb-notif-wrap" ref={notifWrapRef}>
+          <button
+            type="button"
+            className="nb-icon-btn"
+            title="Notifications"
+            aria-expanded={notifOpen}
+            onClick={() => setNotifOpen(o => !o)}
+          >
+            <Bell size={18} strokeWidth={2} />
+            {notificationUnread > 0 && (
+              <span className="nb-badge">{notificationUnread > 99 ? '99+' : notificationUnread}</span>
+            )}
+          </button>
+
+          {notifOpen && (
+            <div className="nb-notif-panel" role="menu">
+              <div className="nb-notif-head">
+                <span className="nb-notif-title">Notifications</span>
+                {notifications.some(n => !n.is_read) && (
+                  <button
+                    type="button"
+                    className="nb-notif-markall"
+                    onClick={() => void markAllNotificationsRead()}
+                  >
+                    Mark all read
+                  </button>
+                )}
+              </div>
+              <div className="nb-notif-list">
+                {notifications.length === 0 && (
+                  <p className="nb-notif-empty">You&apos;re all caught up.</p>
+                )}
+                {notifications.map(n => (
+                  <button
+                    key={n.id}
+                    type="button"
+                    className={['nb-notif-row', !n.is_read ? 'nb-notif-row--unread' : ''].join(' ')}
+                    onClick={() => {
+                      if (!n.is_read) void markNotificationRead(n.id);
+                      const dmTypes = new Set(['message', 'dm']);
+                      if (dmTypes.has(n.type) && n.from_user?.id) {
+                        openNotifFrom(n.from_user.id);
+                      } else {
+                        setNotifOpen(false);
+                      }
+                    }}
+                  >
+                    <div className="nb-notif-row-main">
+                      <span className="nb-notif-from">
+                        {n.from_user?.username || n.from_user?.email || 'NexusPlan'}
+                      </span>
+                      <span className="nb-notif-time">
+                        {new Date(n.created_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="nb-notif-body">{notificationPreview(n)}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         <OnlineUsersAvatars />
 
@@ -236,6 +348,13 @@ const Sidebar: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [subOpen, setSubOpen] = useState<string | null>('dashboard');
   const { rooms } = useChatContext();
+  const {
+    query,
+    setQuery,
+    setOpen: setSearchOpen,
+    sidebarInputRef,
+    setFocusSource,
+  } = useGlobalSearch();
 
   const recentConvos = [...rooms]
     .filter(r => !!r.lastMsg)
@@ -306,13 +425,29 @@ const Sidebar: React.FC = () => {
         {!collapsed && (
           <motion.div
             className="sb-search"
+            data-gs-trigger
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
           >
             <Search size={14} strokeWidth={2} className="sb-search-icon" />
-            <input type="text" placeholder="Search…" className="sb-search-input" />
+            <input
+              ref={sidebarInputRef}
+              type="text"
+              placeholder="Search…"
+              className="sb-search-input"
+              value={query}
+              onChange={e => {
+                setQuery(e.target.value);
+                setSearchOpen(true);
+                setFocusSource('sidebar');
+              }}
+              onFocus={() => {
+                setSearchOpen(true);
+                setFocusSource('sidebar');
+              }}
+            />
             <kbd className="sb-search-kbd">⌘S</kbd>
           </motion.div>
         )}
