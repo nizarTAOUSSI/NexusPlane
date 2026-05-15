@@ -17,7 +17,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://nexusplane.duckdns.org',
+        target: 'https://nexusplan.duckdns.org',
         changeOrigin: true,
         secure: true,
       },

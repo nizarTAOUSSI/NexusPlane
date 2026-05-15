@@ -8,7 +8,7 @@ import { messagesApi, type AppNotification } from '../messagesApi';
 
 export type { AppNotification } from '../messagesApi';
 
-const SOCKET_URL = (import.meta as any).env?.VITE_CHAT_URL || 'https://nexusplane.duckdns.org';
+const SOCKET_URL = (import.meta as any).env?.VITE_CHAT_URL || 'https://nexusplan.duckdns.org';
 
 interface ToastNotif {
   id: string;

@@ -166,6 +166,8 @@ RULES:
 - Never fabricate project data. If something is unknown, say so clearly.
 """.strip()
 
+# - Respond in the same language as the task titles provided (French if titles are French, English if English).
+
 _DASHBOARD_SUMMARY_SYSTEM_PROMPT = """
 You are an AI assistant embedded in NexusPlan, a professional project management platform.
 Your task is to write a brief, personalized dashboard insight for a user reviewing their workload.
@@ -174,7 +176,6 @@ RULES:
 - Write exactly 2-3 sentences. No more.
 - Be data-driven: reference the counts (active tasks, overdue tasks, active projects) directly.
 - End with one concrete, specific recommendation.
-# - Respond in the same language as the task titles provided (French if titles are French, English if English).
 - Respond in english regardless of task language to maintain consistency in the dashboard UI.
 - Do NOT use markdown, bullet points, or headers. Plain prose only.
 - Do NOT address the user by "Dear" or start with "Hello". Be direct.
@@ -349,7 +350,7 @@ def _call_openai_compatible(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://nexusplane.duckdns.org",
+        "HTTP-Referer": "https://nexusplan.duckdns.org",
         "X-Title": "NexusPlan",
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "

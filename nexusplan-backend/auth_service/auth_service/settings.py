@@ -170,7 +170,7 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     "COMPONENT_SPLIT_REQUEST": True,
-    "SERVERS": [{"url": "https://nexusplane.duckdns.org", "description": "Via API Gateway"}],
+    "SERVERS": [{"url": "https://nexusplan.duckdns.org", "description": "Via API Gateway"}],
     "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
 }
 
@@ -185,7 +185,7 @@ CORS_ALLOWED_ORIGINS = [
     o.strip()
     for o in os.environ.get(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://localhost:80,https://nexusplane.duckdns.org",
+        "http://localhost:5173,http://localhost:5174,http://localhost:3000,http://localhost:80,https://nexusplan.duckdns.org",
     ).split(",")
     if o.strip()
 ]
