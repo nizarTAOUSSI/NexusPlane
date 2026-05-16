@@ -111,7 +111,7 @@ io.on('connection', (socket) => {
         console.log(`[room] ${socket.id} joined: ${room}`);
     });
 
-    socket.on('sendDM', async ({ receiverId, message, senderId: payloadSenderId }) => {
+    socket.on('sendDM', async ({ receiverId, message, senderId: payloadSenderId, senderName }) => {
         const senderId = currentUserId || payloadSenderId;
         if (!senderId) { socket.emit('error', { message: 'Not identified — call userOnline first' }); return; }
 
@@ -121,6 +121,7 @@ io.on('connection', (socket) => {
         const payload = {
             type:       'dm',
             senderId,
+            senderName: senderName || undefined,
             receiverId,
             message,
             timestamp:  new Date().toISOString(),
@@ -128,13 +129,25 @@ io.on('connection', (socket) => {
 
         io.to(room).emit('receiveMessage', payload);
 
+        const receiverSocketIdEarly = usersOnline[receiverId];
+        if (receiverSocketIdEarly) {
+            try {
+                const roomSockets = await io.in(room).fetchSockets();
+                const isInRoom = roomSockets.some(s => s.id === receiverSocketIdEarly);
+                if (!isInRoom) {
+                    io.to(receiverSocketIdEarly).emit('receiveMessage', payload);
+                }
+            } catch {
+                io.to(receiverSocketIdEarly).emit('receiveMessage', payload);
+            }
+        }
+
         const saved = await djangoFetch(
             resolveUrl(API_STORE_DM),
             'POST',
             { sender_id: senderId, receiver_id: receiverId, message }
         );
 
-        // Notify sender that message was delivered (receiver is connected)
         const receiverSocketId = usersOnline[receiverId];
         const senderSocketId = usersOnline[senderId];
         if (saved && receiverSocketId && senderSocketId) {
