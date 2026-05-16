@@ -1,4 +1,5 @@
 import json
+import logging
 import threading
 import urllib.parse
 
@@ -35,6 +36,7 @@ from .serializers import (
 
 _PROJECT_TAG = ["Projects"]
 _MEMBERSHIP_TAG = ["Memberships"]
+logger = logging.getLogger(__name__)
 
 
 def _redis():
@@ -54,16 +56,18 @@ def _get_user_by_email(email: str) -> dict | None:
     try:
         cached = _redis().get(f"user:email:{email.lower()}")
         if cached:
-            return json.loads(cached)
-    except Exception:
-        pass
+            data = json.loads(cached)
+            if data:  
+                return data
+    except Exception as exc:
+        logger.warning("Redis lookup failed for %s: %s", email, exc)
     try:
         auth_url = getattr(django_settings, "AUTH_SERVICE_URL", "").rstrip("/")
         if auth_url:
             resp = http_requests.get(
                 f"{auth_url}/api/auth/lookup/",
                 params={"email": email},
-                timeout=3,
+                timeout=10,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -81,8 +85,16 @@ def _get_user_by_email(email: str) -> dict | None:
                 except Exception:
                     pass
                 return data
-    except Exception:
-        pass
+            else:
+                logger.warning(
+                    "auth_service lookup returned HTTP %d for email=%s — "
+                    "check ALLOWED_HOSTS includes 'auth_service'",
+                    resp.status_code, email,
+                )
+        else:
+            logger.warning("AUTH_SERVICE_URL is not configured in project_service settings")
+    except Exception as exc:
+        logger.warning("HTTP lookup to auth_service failed for %s: %s", email, exc)
     return None
 
 
