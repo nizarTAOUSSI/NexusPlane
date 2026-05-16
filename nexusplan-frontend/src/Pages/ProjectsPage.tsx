@@ -166,7 +166,7 @@ const ProjectsPage: React.FC = () => {
 
     if (view === 'grid') return (
       <motion.div
-        className="flex justify-start items-start gap-6 flex-wrap p-2"
+        className="projects-folder-grid flex justify-start items-start gap-6 flex-wrap p-2"
         initial="hidden"
         animate="visible"
         variants={{ visible: { transition: { staggerChildren: 0.07 } } }}
