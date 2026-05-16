@@ -18,6 +18,7 @@ import {
   PanelLeftOpen,
   Users,
   MessageSquare,
+  Menu,
 } from 'lucide-react';
 import { IoFolderOutline } from 'react-icons/io5';
 import { LuKanban } from 'react-icons/lu';
@@ -131,7 +132,7 @@ function notificationPreview(n: { type: string; data: Record<string, unknown> })
   return n.type.replace(/_/g, ' ');
 }
 
-export const TopNavbar: React.FC = () => {
+export const TopNavbar: React.FC<{ onMobileMenuToggle?: () => void }> = ({ onMobileMenuToggle }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -180,6 +181,15 @@ export const TopNavbar: React.FC = () => {
   return (
     <header className="nb">
       <div className="nb-left">
+        {onMobileMenuToggle && (
+          <button
+            className="nb-menu-btn"
+            onClick={onMobileMenuToggle}
+            aria-label="Toggle navigation"
+          >
+            <Menu size={20} strokeWidth={2} />
+          </button>
+        )}
         <span className="nb-breadcrumb flex items-center">
           <button
             className="nb-breadcrumb-root hover:underline cursor-pointer"
@@ -345,7 +355,10 @@ export const TopNavbar: React.FC = () => {
   );
 };
 
-const Sidebar: React.FC = () => {
+const Sidebar: React.FC<{ isMobileOpen?: boolean; onMobileClose?: () => void }> = ({
+  isMobileOpen = false,
+  onMobileClose,
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
@@ -377,12 +390,17 @@ const Sidebar: React.FC = () => {
       setSubOpen(prev => (prev === item.id ? null : item.id));
     } else {
       navigate(item.path);
+      onMobileClose?.();
     }
   };
 
   return (
+    <>
+      {isMobileOpen && (
+        <div className="sb-mobile-backdrop" onClick={onMobileClose} />
+      )}
     <motion.aside
-      className="sb"
+      className={`sb${isMobileOpen ? ' sb--mobile-open' : ''}`}
       animate={{ width: collapsed ? 68 : 256 }}
       transition={{ duration: 0.28, ease: [0.4, 0, 0.2, 1] }}
     >
@@ -629,6 +647,7 @@ const Sidebar: React.FC = () => {
         </button>
       </div>
     </motion.aside>
+    </>
   );
 };
 
