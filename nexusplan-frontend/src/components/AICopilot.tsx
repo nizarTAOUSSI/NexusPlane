@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import { X, Send, Loader2, User, Minimize2, Maximize2, RefreshCw, Copy, Check, CornerDownLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { aiService, type CopilotPayload, type CopilotResponse } from '../services/aiService';
@@ -42,7 +42,13 @@ const AICopilot: React.FC<AICopilotProps> = ({
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [openUpward, setOpenUpward] = useState(true);
+  const [openRight, setOpenRight] = useState(false);
   const [input, setInput] = useState('');
+  const dragX = useMotionValue(0);
+  const dragY = useMotionValue(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pointerDownPos = useRef({ x: 0, y: 0 });
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome',
@@ -158,6 +164,23 @@ const AICopilot: React.FC<AICopilotProps> = ({
     inputRef.current?.focus();
   }, []);
 
+  const handleFabClick = (e: React.MouseEvent) => {
+    const dx = Math.abs(e.clientX - pointerDownPos.current.x);
+    const dy = Math.abs(e.clientY - pointerDownPos.current.y);
+    if (dx > 4 || dy > 4) return;
+
+    const el = containerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const WIN_H = 540;
+      const WIN_W = 400;
+      const OFFSET = 76;
+      setOpenUpward(rect.top > WIN_H + OFFSET);
+      setOpenRight(rect.right < WIN_W + 16);
+    }
+    setIsOpen(true);
+  };
+
   const clearChat = () => {
     setReplyingTo(null);
     setMessages([
@@ -170,12 +193,23 @@ const AICopilot: React.FC<AICopilotProps> = ({
     ]);
   };
   return (
-    <div className="copilot-container">
+    <motion.div
+      ref={containerRef}
+      className="copilot-container"
+      drag
+      dragMomentum={false}
+      dragElastic={0}
+      style={{ x: dragX, y: dragY }}
+      whileDrag={{ cursor: 'grabbing' }}
+      onPointerDown={(e) => {
+        pointerDownPos.current = { x: e.clientX, y: e.clientY };
+      }}
+    >
       <AnimatePresence>
         {!isOpen && (
           <motion.button
             className="copilot-fab"
-            onClick={() => setIsOpen(true)}
+            onClick={(e) => handleFabClick(e)}
             initial={{ scale: 0.5, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.5, opacity: 0 }}
@@ -211,12 +245,17 @@ const AICopilot: React.FC<AICopilotProps> = ({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            className={`copilot-window ${isMinimized ? 'copilot-window--minimized' : ''}`}
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            className={[
+              'copilot-window',
+              isMinimized ? 'copilot-window--minimized' : '',
+              !openUpward ? 'copilot-window--open-down' : '',
+              openRight  ? 'copilot-window--open-right' : '',
+            ].filter(Boolean).join(' ')}
+            initial={{ opacity: 0, y: openUpward ? 20 : -20, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            exit={{ opacity: 0, y: openUpward ? 20 : -20, scale: 0.95 }}
           >
-            <div className="copilot-header">
+            <div className="copilot-header copilot-drag-handle">
               <div className="copilot-header-left">
                 <div className="copilot-header-icon">
                   <img src={logo} alt="NexusPlan" className="copilot-header-icon-img" />
@@ -334,7 +373,7 @@ const AICopilot: React.FC<AICopilotProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };
 
