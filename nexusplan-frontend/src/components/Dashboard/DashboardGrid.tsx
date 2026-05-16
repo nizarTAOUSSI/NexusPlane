@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import GridLayout, { WidthProvider } from 'react-grid-layout/legacy';
 import type { Layout, LayoutItem } from 'react-grid-layout';
@@ -31,6 +31,21 @@ import ImageWidget from './ImageWidget';
 
 const GridWithWidth = WidthProvider(GridLayout);
 
+function useGridCols() {
+  const getConfig = (w: number) => {
+    if (w < 640) return { cols: 2, rowHeight: 56, canInteract: false };
+    if (w < 1024) return { cols: 6, rowHeight: 64, canInteract: true };
+    return { cols: 12, rowHeight: 72, canInteract: true };
+  };
+  const [config, setConfig] = useState(() => getConfig(window.innerWidth));
+  useEffect(() => {
+    const handler = () => setConfig(getConfig(window.innerWidth));
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return config;
+}
+
 interface DashboardGridProps {
   data: DashboardWidgetData;
   userId: string;
@@ -46,6 +61,16 @@ const DashboardGrid: React.FC<DashboardGridProps> = ({ data, userId, username })
     [persistedLayout, hiddenWidgets],
   );
   const [gridLayout, setGridLayout] = useState<LayoutItem[]>(safeLayout);
+  const { cols, rowHeight, canInteract } = useGridCols();
+
+  const displayLayout = useMemo(() => {
+    if (cols === 12) return gridLayout;
+    return gridLayout.map(item => ({
+      ...item,
+      w: Math.min(cols, Math.max(1, Math.round(item.w * cols / 12))),
+      x: Math.min(cols - 1, Math.floor(item.x * cols / 12)),
+    }));
+  }, [gridLayout, cols]);
 
   useEffect(() => {
     setGridLayout(safeLayout);
@@ -140,23 +165,45 @@ const DashboardGrid: React.FC<DashboardGridProps> = ({ data, userId, username })
 
   return (
     <div className="dash-grid-host">
+      {!canInteract ? (
+        <div className="dash-grid-mobile-stack">
+          {gridLayout.map((item) => {
+            const content = renderWidgetContent(item.i);
+            if (!content) return null;
+            return (
+              <div key={item.i} className="dash-grid-cell dash-grid-cell--mobile">
+                <button
+                  type="button"
+                  className="dash-cell-delete"
+                  onClick={() => handleDelete(item.i)}
+                  aria-label="Remove widget"
+                  title="Remove"
+                >
+                  <X size={11} />
+                </button>
+                <div className="dash-widget-anim">{content}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
       <GridWithWidth
         className="dash-grid"
-        layout={gridLayout as Layout}
-        cols={12}
-        rowHeight={72}
+        layout={displayLayout as Layout}
+        cols={cols}
+        rowHeight={rowHeight}
         margin={[14, 14]}
         containerPadding={[0, 0]}
         onLayoutChange={onLayoutChange}
         onDragStop={onDragStop}
         onResizeStop={onResizeStop}
         draggableHandle=".dash-widget-drag"
-        isDraggable
-        isResizable
+        isDraggable={canInteract}
+        isResizable={canInteract}
         compactType="vertical"
         useCSSTransforms
       >
-        {gridLayout.map((item) => {
+        {displayLayout.map((item) => {
           const content = renderWidgetContent(item.i);
           if (!content) return <div key={item.i} />;
           return (
@@ -176,9 +223,9 @@ const DashboardGrid: React.FC<DashboardGridProps> = ({ data, userId, username })
           );
         })}
       </GridWithWidth>
+      )}
     </div>
   );
 };
 
 export default DashboardGrid;
-
