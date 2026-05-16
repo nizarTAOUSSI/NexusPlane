@@ -211,6 +211,7 @@ const ChatPage: React.FC = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const [showPanel, setShowPanel] = useState(true);
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
 
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [newChatEmail, setNewChatEmail] = useState('');
@@ -394,7 +395,7 @@ const ChatPage: React.FC = () => {
       status: 'sent',
     }]);
 
-    socket.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id });
+    socket.emit('sendDM', { receiverId: activeRoom.id, message: text, senderId: user?.id, senderName: user?.username || user?.email?.split('@')[0] || user?.id });
   }, [input, activeRoom, user, socket, replyingTo]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -552,8 +553,8 @@ const ChatPage: React.FC = () => {
   }
 
   return (
-    <div className="chat-page rounded-4xl">
-      <aside className="chat-sidebar">
+    <div className={`chat-page rounded-4xl${mobileView === 'chat' ? ' chat-page--mobile-chat' : ''}`}>
+      <aside className={`chat-sidebar${mobileView === 'chat' ? ' chat-sidebar--mobile-hidden' : ''}`}>
         <div className="chat-sidebar-header">
           <div>
             <h2 className="chat-sidebar-title">Messages</h2>
@@ -584,7 +585,7 @@ const ChatPage: React.FC = () => {
             <button
               key={room.id}
               className={`chat-room-item${activeRoom?.id === room.id ? ' chat-room-item--active' : ''}`}
-              onClick={() => navigate(`/chat/${room.id}`)}
+              onClick={() => { navigate(`/chat/${room.id}`); setMobileView('chat'); }}
             >
               <div className="chat-room-avatar-wrap">
                 {room.type === 'dm'
@@ -616,9 +617,18 @@ const ChatPage: React.FC = () => {
 
       {activeRoom ? (
         <>
-          <div className="chat-main">
+          <div className={`chat-main${mobileView === 'chat' ? ' chat-main--mobile-visible' : ''}`}>
         <div className="chat-topbar">
           <div className="chat-topbar-left">
+            <button
+              className="chat-back-btn"
+              onClick={() => setMobileView('list')}
+              aria-label="Back to conversations"
+            >
+              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
             {activeRoom.type === 'dm' && activeRoom.avatar
               ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
               : <AvatarChip name={activeRoom.name} size={40} color={colorFor(activeRoom.id)} />
@@ -844,6 +854,16 @@ const ChatPage: React.FC = () => {
       </div>
 
       {showPanel && <aside className="chat-right-panel">
+        {/* Mobile close button */}
+        <button
+          className="chat-right-close-btn"
+          onClick={() => setShowPanel(false)}
+          aria-label="Close panel"
+        >
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+            <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round"/>
+          </svg>
+        </button>
         <div className="chat-right-header">
           {activeRoom.type === 'dm' && activeRoom.avatar
             ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 52, height: 52, borderRadius: '50%', objectFit: 'cover' }} />
@@ -907,6 +927,7 @@ const ChatPage: React.FC = () => {
           </div>
         </div> */}
       </aside>}
+      {showPanel && <div className="chat-panel-backdrop" onClick={() => setShowPanel(false)} />}
         </>
       ) : (
         <div className="chat-main chat-empty">Select a conversation to start chatting</div>
