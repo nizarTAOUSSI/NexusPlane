@@ -97,7 +97,7 @@ const CursorOverlay: React.FC = () => {
         >
           <CursorSVG color={selfColor} />
           <span className="cursor-label" style={{ background: selfColor }}>
-            {selfName} (You)
+            {selfName} 
           </span>
         </div>
       )}
