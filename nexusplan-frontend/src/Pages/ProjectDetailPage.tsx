@@ -63,7 +63,7 @@ const InviteModal: React.FC<InviteModalProps> = ({
   const [message, setMessage] = useState('');
   const roleRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-
+  const { user } = useAuth();
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (roleRef.current && !roleRef.current.contains(e.target as Node)) {
@@ -93,7 +93,7 @@ const InviteModal: React.FC<InviteModalProps> = ({
     setMessage('');
 
     try {
-      const result = await projectsApi.inviteMember(projectId, { email: trimmed, role });
+      const result = await projectsApi.inviteMember(projectId, { email: trimmed, role }, user?.id ?? '');
 
       if (result?.id) {
         setStatus('success_existing');
