@@ -55,8 +55,10 @@ export const projectsApi = {
   getMembers: (id: string) =>
     api.get<Membership[]>(`/projects/${id}/members/`).then(r => r.data),
 
-  inviteMember: (projectId: string, payload: InvitePayload) =>
-    api.post(`/projects/${projectId}/invite/`, payload).then(r => r.data),
+  inviteMember: (projectId: string, payload: InvitePayload , userId: string) =>
+    api.post(`/projects/${projectId}/invite/`, payload, {
+      headers: { 'X-User-Id': userId },
+    }).then(r => r.data),
 
   quitProject: (projectId: string) =>
     api.post(`/projects/${projectId}/quit/`).then(r => r.data),
