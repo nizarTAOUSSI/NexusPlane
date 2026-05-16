@@ -1,4 +1,5 @@
 import json
+import threading
 import urllib.parse
 
 import redis as redis_client
@@ -40,6 +41,13 @@ def _redis():
     return redis_client.Redis.from_url(
         django_settings.REDIS_URL, decode_responses=True
     )
+
+
+def _send_async(fn, **kwargs) -> None:
+    """Fire-and-forget: run *fn(**kwargs)* in a daemon thread so the HTTP
+    response is returned immediately without waiting for the SMTP round-trip."""
+    t = threading.Thread(target=fn, kwargs=kwargs, daemon=True)
+    t.start()
 
 
 def _get_user_by_email(email: str) -> dict | None:
@@ -966,7 +974,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 role=role,
             )
 
-            _send_existing_user_invite(
+            _send_async(
+                _send_existing_user_invite,
                 to_email=email,
                 username=username,
                 project_name=project.name,
@@ -986,7 +995,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 f"&invite_role={role}"
                 f"&email={urllib.parse.quote(email)}"
             )
-            _send_new_user_invite(
+            _send_async(
+                _send_new_user_invite,
                 to_email=email,
                 project_name=project.name,
                 role=role,
@@ -1460,7 +1470,8 @@ class TeamViewSet(viewsets.ModelViewSet):
                 )
             membership = TeamMembership.objects.create(team=team, userId=user_id, role=role)
             username = user_info.get("username") or email.split("@")[0]
-            _send_team_existing_user_invite(
+            _send_async(
+                _send_team_existing_user_invite,
                 to_email=email,
                 username=username,
                 team_name=team.name,
@@ -1484,7 +1495,8 @@ class TeamViewSet(viewsets.ModelViewSet):
                 f"&invite_role={role}"
                 f"&email={urllib.parse.quote(email)}"
             )
-            _send_team_new_user_invite(
+            _send_async(
+                _send_team_new_user_invite,
                 to_email=email,
                 team_name=team.name,
                 role=role,
@@ -1671,17 +1683,15 @@ class TeamViewSet(viewsets.ModelViewSet):
             username  = user_info.get("username") or (email.split("@")[0] if email else uid[:8])
             frontend_url = django_settings.FRONTEND_URL.rstrip("/")
             if email:
-                try:
-                    _send_existing_user_invite(
-                        to_email=email,
-                        username=username,
-                        project_name=project.name,
-                        role=role,
-                        project_url=f"{frontend_url}/projects/{project.id}",
-                        frontend_url=frontend_url,
-                    )
-                except Exception:
-                    pass
+                _send_async(
+                    _send_existing_user_invite,
+                    to_email=email,
+                    username=username,
+                    project_name=project.name,
+                    role=role,
+                    project_url=f"{frontend_url}/projects/{project.id}",
+                    frontend_url=frontend_url,
+                )
 
         return Response(
             {
