@@ -85,7 +85,7 @@ const CursorOverlay: React.FC = () => {
   if (active.length === 0 && !selfPos) return null;
 
   const selfColor = user?.id ? cursorColor(user.id) : PALETTE[0];
-  const selfName  = user?.username || user?.email?.split('@')[0] || 'You';
+  const selfName  ='You';
 
   return (
     <div className="cursor-overlay" aria-hidden>
