@@ -263,12 +263,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await messagesApi.markAllNotificationsRead();
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     } catch {
-      /* ignore */
     }
   }, []);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setNotifications([]);
+      return;
+    }
     void refreshNotifications();
   }, [user?.id, refreshNotifications]);
 
@@ -325,6 +327,35 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ? data.roomId
         : (data.senderId === user?.id ? data.receiverId : data.senderId);
 
+      if (data.type !== 'group' && String(data.senderId) !== String(uid)) {
+        const existingRoom = roomsRef.current.find(r => r.id === targetRoomId && r.type === 'dm');
+        if (!existingRoom) {
+          const newRoom: ChatRoom = {
+            id: targetRoomId,
+            name: data.senderName || targetRoomId,
+            type: 'dm',
+            avatar: undefined,
+            lastMsg: data.message,
+            lastTime: msgTime,
+            unread: 1,
+          };
+          setRooms(prev => {
+            if (prev.some(r => r.id === targetRoomId)) return prev;
+            return [newRoom, ...prev];
+          });
+          socketRef.current?.emit('joinRoom', {
+            type: 'dm',
+            targetUserId: targetRoomId,
+            senderId: uid,
+          });
+          const toastId = crypto.randomUUID();
+          setToasts(prev => [...prev, { id: toastId, senderName: data.senderName || targetRoomId, message: data.message, roomId: targetRoomId }]);
+          playNotificationSound();
+          setTimeout(() => setToasts(prev => prev.filter(t => t.id !== toastId)), 4500);
+          return; 
+        }
+      }
+
       const pathMatch = /^\/chat\/([^/?#]+)/.exec(chatPathnameRef.current);
       const isViewingThisThread =
         pathMatch != null && String(pathMatch[1]) === String(targetRoomId);
@@ -338,24 +369,27 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
         playNotificationSound();
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== toastId)), 4500);
 
-        const syn = buildSyntheticMessageNotification(
-          data,
-          uid,
-          roomsRef.current,
-          roomMembersRef.current,
-        );
-        if (syn) {
-          setNotifications(prev => {
-            const head = prev.slice(0, 8);
-            const dup = head.some(
-              n =>
-                n.from_user?.id === syn.from_user?.id &&
-                String(n.data?.message) === String(syn.data?.message) &&
-                !n.is_read,
-            );
-            if (dup) return prev;
-            return [syn, ...prev].slice(0, 100);
-          });
+      
+        if (data.type !== 'group') {
+          const syn = buildSyntheticMessageNotification(
+            data,
+            uid,
+            roomsRef.current,
+            roomMembersRef.current,
+          );
+          if (syn) {
+            setNotifications(prev => {
+              const head = prev.slice(0, 8);
+              const dup = head.some(
+                n =>
+                  n.from_user?.id === syn.from_user?.id &&
+                  String(n.data?.message) === String(syn.data?.message) &&
+                  !n.is_read,
+              );
+              if (dup) return prev;
+              return [syn, ...prev].slice(0, 100);
+            });
+          }
         }
       }
     });
