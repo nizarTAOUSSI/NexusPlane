@@ -401,7 +401,7 @@ const TeamsPage: React.FC = () => {
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="tm-header-actions">
           {teams.length > 0 && (
             <div className="tm-team-switcher" style={{ position: 'relative' }}>
               <button
