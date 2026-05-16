@@ -182,11 +182,19 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
     [],
   );
 
+  const scrollToNewWidget = useCallback(() => {
+    setTimeout(() => {
+      const main = document.querySelector('.app-main');
+      if (main) main.scrollTo({ top: main.scrollHeight, behavior: 'smooth' });
+    }, 80);
+  }, []);
+
   const handleAddNote = useCallback(() => {
     const id = `note-${genId()}`;
     dispatch(addWidget({ i: id, x: 0, y: getBottomY(), w: 4, h: 3, minW: 2, minH: 2 }));
     dispatch(setNote({ id, data: { content: '', color: 'yellow' } }));
-  }, [dispatch, getBottomY, genId]);
+    scrollToNewWidget();
+  }, [dispatch, getBottomY, genId, scrollToNewWidget]);
 
   const handleImageFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -211,8 +219,9 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
       dispatch(addWidget({ i: id, x: 0, y: getBottomY(), w: 4, h: 4, minW: 2, minH: 3 }));
       dispatch(setImage({ id, data: { src } }));
       e.target.value = '';
+      scrollToNewWidget();
     },
-    [dispatch, getBottomY, genId],
+    [dispatch, getBottomY, genId, scrollToNewWidget],
   );
 
   return (
@@ -268,7 +277,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
             ref={imageFileRef}
             type="file"
             accept="image/*"
-            style={{ display: 'none' }}
+            style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
             onChange={handleImageFileChange}
           />
           <button type="button" className="dash-reset-btn dash-reset-btn--orbit" onClick={handleResetLayout}>
