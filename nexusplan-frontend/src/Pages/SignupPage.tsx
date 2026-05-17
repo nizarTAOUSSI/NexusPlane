@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import logo from '../assets/logoNexus.png';
 import Animation from '../components/Animation';
@@ -9,11 +9,21 @@ import BackBtn from '../components/BackBtn';
 
 const SignupPage = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { login } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [passwordConfirm, setPasswordConfirm] = useState('');
+
+    // Pre-fill email and capture invite params from the invitation link
+    const inviteProject = searchParams.get('invite_project');
+    const inviteRole = searchParams.get('invite_role');
+
+    useEffect(() => {
+        const inviteEmail = searchParams.get('email');
+        if (inviteEmail) setEmail(inviteEmail);
+    }, []);
 
     const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
         const credential = credentialResponse?.credential;
@@ -26,7 +36,15 @@ const SignupPage = () => {
             const response = await api.post('/auth/google-login/', { credential });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
-            navigate('/dashboard');
+            // If came from an invite, claim it immediately (user is already logged in)
+            if (inviteProject) {
+                try {
+                    await api.post('/projects/claim-invite/');
+                } catch { /* non-fatal */ }
+                navigate(`/projects/${inviteProject}`);
+            } else {
+                navigate('/dashboard');
+            }
         } catch (error) {
             console.error("Google login failed", error);
         } finally {
@@ -48,7 +66,12 @@ const SignupPage = () => {
                 password,
                 password2: passwordConfirm
             });
-            navigate('/login');
+            // Preserve invite params so LoginPage can claim the invite after login
+            if (inviteProject && inviteRole) {
+                navigate(`/login?invite_project=${inviteProject}&invite_role=${inviteRole}`);
+            } else {
+                navigate('/login');
+            }
         } catch (error) {
             console.error("Signup failed", error);
         } finally {

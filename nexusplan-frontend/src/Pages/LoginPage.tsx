@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import logo from '../assets/logoNexus.png';
 import Animation from '../components/Animation';
@@ -9,10 +9,21 @@ import BackBtn from '../components/BackBtn';
 
 const LoginPage = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { login } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    const inviteProject = searchParams.get('invite_project');
+
+    const claimInviteAndRedirect = async (_userId: string) => {
+        if (!inviteProject) return navigate('/dashboard');
+        try {
+            await api.post('/projects/claim-invite/');
+        } catch {}
+        navigate(`/projects/${inviteProject}`);
+    };
 
     const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
         const credential = credentialResponse?.credential;
@@ -25,7 +36,7 @@ const LoginPage = () => {
             const response = await api.post('/auth/google-login/', { credential });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
-            navigate('/dashboard');
+            await claimInviteAndRedirect(user.id);
         } catch (error) {
             console.error("Google login failed", error);
         } finally {
@@ -40,7 +51,7 @@ const LoginPage = () => {
             const response = await api.post('/auth/login/', { email, password });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
-            navigate('/dashboard');
+            await claimInviteAndRedirect(user.id);
         } catch (error) {
             console.error("Login failed", error);
             alert("Invalid credentials");

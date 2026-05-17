@@ -1007,6 +1007,15 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 f"&invite_role={role}"
                 f"&email={urllib.parse.quote(email)}"
             )
+            try:
+                _redis().set(
+                    f"pending_project_invite:{email.lower()}",
+                    json.dumps({"project_id": str(project.id), "role": role}),
+                    ex=60 * 60 * 24 * 7,  # 7 days
+                )
+            except Exception as exc:
+                logger.warning("Could not store pending project invite in Redis: %s", exc)
+
             _send_async(
                 _send_new_user_invite,
                 to_email=email,
@@ -1134,6 +1143,101 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         membership.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # ------------------------------------------------------------------
+    # claim-invite — auto-add user after they register via invite link
+    # ------------------------------------------------------------------
+
+    @extend_schema(
+        summary="Claim a pending project invitation",
+        description=(
+            "After a new user registers via an invitation link and logs in, "
+            "call this endpoint to be automatically added to the project. "
+            "The pending invite is looked up from Redis by the caller's email."
+        ),
+        request=None,
+        responses={
+            201: MembershipSerializer,
+            200: OpenApiResponse(description="Already a member of the project."),
+            404: OpenApiResponse(description="No pending invitation found for this account."),
+        },
+        tags=_PROJECT_TAG,
+    )
+    @action(detail=False, methods=["post"], url_path="claim-invite")
+    def claim_invite(self, request: Request) -> Response:
+        """Claim a pending project invite stored in Redis after the user registers."""
+        requester_id = request.headers.get("X-User-Id")
+        if not requester_id:
+            return Response(
+                {"detail": "Missing X-User-Id header."},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        # Resolve user email from auth_service
+        user_info = _get_user_by_id(requester_id)
+        if not user_info:
+            return Response(
+                {"detail": "Could not resolve user information."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        email = (user_info.get("email") or "").lower()
+        if not email:
+            return Response(
+                {"detail": "Could not resolve user email."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Look up pending invite in Redis
+        try:
+            raw = _redis().get(f"pending_project_invite:{email}")
+        except Exception as exc:
+            logger.warning("Redis error while claiming invite for %s: %s", email, exc)
+            raw = None
+
+        if not raw:
+            return Response(
+                {"detail": "No pending project invitation found for this account."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            invite_data = json.loads(raw)
+            project_id = invite_data["project_id"]
+            role = invite_data["role"]
+        except (json.JSONDecodeError, KeyError):
+            return Response(
+                {"detail": "Invalid invitation data."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            project = Project.objects.get(id=project_id)
+        except Project.DoesNotExist:
+            _redis().delete(f"pending_project_invite:{email}")
+            return Response(
+                {"detail": "The invited project no longer exists."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Idempotent — already a member is OK
+        existing = Membership.objects.filter(projectId=project, userId=requester_id).first()
+        if existing:
+            _redis().delete(f"pending_project_invite:{email}")
+            return Response(MembershipSerializer(existing).data, status=status.HTTP_200_OK)
+
+        membership = Membership.objects.create(
+            projectId=project,
+            userId=requester_id,
+            role=role,
+        )
+
+        # Clean up Redis
+        try:
+            _redis().delete(f"pending_project_invite:{email}")
+        except Exception:
+            pass
+
+        return Response(MembershipSerializer(membership).data, status=status.HTTP_201_CREATED)
 
 
 # ---------------------------------------------------------------------------
