@@ -227,7 +227,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [],
   );
 
-  // Keep ref in sync so the socket handler always has the latest version
   useEffect(() => { updateRoomLastMsgRef.current = updateRoomLastMsg; }, [updateRoomLastMsg]);
 
   const notificationUnread = useMemo(
@@ -241,7 +240,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const list = await messagesApi.listNotifications({ limit: 50 });
       setNotifications(list);
     } catch {
-      /* ignore */
     }
   }, [user?.id]);
 
@@ -254,7 +252,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const updated = await messagesApi.markNotificationRead(id);
       setNotifications(prev => prev.map(n => (n.id === id ? updated : n)));
     } catch {
-      /* ignore */
     }
   }, []);
 
@@ -453,17 +450,32 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const recent = res.data as Array<{
             type: 'dm' | 'group';
             roomId: string;
+            partnerName?: string;
+            partnerAvatar?: string | null;
             lastMsg: string;
             lastTime: string;
             unread: number;
           }>;
-          setRooms(prev =>
-            prev.map(r => {
+          setRooms(prev => {
+            const updated = prev.map(r => {
               const match = recent.find(c => c.roomId === r.id);
               if (!match) return r;
               return { ...r, lastMsg: match.lastMsg, lastTime: match.lastTime, unread: match.unread };
-            })
-          );
+            });
+            const existingIds = new Set(updated.map(r => r.id));
+            const extraDmRooms: ChatRoom[] = recent
+              .filter(c => c.type === 'dm' && !existingIds.has(c.roomId))
+              .map(c => ({
+                id: c.roomId,
+                name: c.partnerName || c.roomId,
+                type: 'dm' as const,
+                avatar: c.partnerAvatar || undefined,
+                lastMsg: c.lastMsg,
+                lastTime: c.lastTime,
+                unread: c.unread,
+              }));
+            return extraDmRooms.length > 0 ? [...updated, ...extraDmRooms] : updated;
+          });
         } catch {
         }
       } catch (err) {

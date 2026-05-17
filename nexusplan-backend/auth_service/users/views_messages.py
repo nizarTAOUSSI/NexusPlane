@@ -221,6 +221,8 @@ def recent_conversations(request):
         results.append({
             "type": "dm",
             "roomId": str(partner.id),
+            "partnerName": partner.username or partner.email or str(partner.id),
+            "partnerAvatar": partner.avatar if hasattr(partner, 'avatar') else None,
             "lastMsg": dm.message,
             "lastTime": dm.created_at.isoformat(),
             "unread": unread,

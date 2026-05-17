@@ -649,7 +649,9 @@ const ChatPage: React.FC = () => {
                 }
             <div>
               <p className="chat-topbar-name">{activeRoom.name}</p>
-              <p className='chat-topbar-meta flex items-center font-semibold'> <RiGroupLine size={14}/> {activeRoom?.members}</p> 
+              {activeRoom.type !== 'dm' &&(
+                <p className='chat-topbar-meta flex items-center font-semibold'> <RiGroupLine size={14}/> {activeRoom?.members}</p>
+              )} 
               {/* <p className="chat-topbar-meta">
                 {activeRoom.type === 'group'
                   ? `${activeRoom.members ?? 0} members`
