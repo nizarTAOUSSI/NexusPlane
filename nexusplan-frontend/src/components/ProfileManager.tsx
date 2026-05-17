@@ -80,7 +80,7 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ isOpen, onClose }) => {
         res = await api.patch('/auth/profile/', { username, avatar });
       }
 
-      updateUser({ username: res.data.username, avatar: res.data.avatar });
+      updateUser(res.data);
       setAvatarFile(null);
       setAvatarPreviewUrl('');
       setProfileMsg({ type: 'success', text: 'Profile updated successfully!' });

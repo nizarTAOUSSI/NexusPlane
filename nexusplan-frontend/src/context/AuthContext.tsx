@@ -44,6 +44,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(false);
   }, []);
 
+  useEffect(() => {
+    const refreshProfile = async () => {
+      if (!token) return;
+      try {
+        const res = await api.get('/auth/profile/');
+        setUser(res.data);
+        localStorage.setItem('user_info', JSON.stringify(res.data));
+      } catch (e) {
+        console.error('Failed to refresh profile', e);
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user_info');
+        setToken(null);
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+    };
+
+    refreshProfile();
+  }, [token]);
+
   const login = (access: string, refresh: string, userInfo: UserInfo) => {
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
