@@ -7,6 +7,7 @@ export interface UserInfo {
   username: string;
   avatar?: string;
   role: string;
+  has_password?: boolean;
 }
 
 interface AuthContextType {
@@ -16,6 +17,7 @@ interface AuthContextType {
   loading: boolean;
   login: (access: string, refresh: string, userInfo: UserInfo) => void;
   logout: () => void;
+  updateUser: (updatedInfo: Partial<UserInfo>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,6 +53,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthenticated(true);
   };
 
+  const updateUser = (updatedInfo: Partial<UserInfo>) => {
+    setUser((prev) => {
+      if (!prev) return prev;
+      const newUser = { ...prev, ...updatedInfo };
+      localStorage.setItem('user_info', JSON.stringify(newUser));
+      return newUser;
+    });
+  };
+
   const logout = async () => {
     try {
       const refresh = localStorage.getItem('refresh_token');
@@ -70,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, loading, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
