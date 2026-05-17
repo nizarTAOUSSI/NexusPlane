@@ -402,7 +402,6 @@ const Sidebar: React.FC<{ isMobileOpen?: boolean; onMobileClose?: () => void }> 
   const { logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [subOpen, setSubOpen] = useState<string | null>('dashboard');
-  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
   const [profileManagerOpen, setProfileManagerOpen] = useState(false);
   const { rooms } = useChatContext();
   const {
