@@ -145,7 +145,7 @@ class LoginView(APIView):
                 "access": access_token,
                 "refresh": refresh_token,
                 "user": UserProfileSerializer(user).data,
-                "provider": "local",
+                "provider": "local" ,
             },
             status=status.HTTP_200_OK,
         )
