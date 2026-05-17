@@ -11,11 +11,15 @@ from .models import User, UserRole
 
 class UserProfileSerializer(serializers.ModelSerializer):
     """Read / partial-update serializer for the authenticated user's profile."""
+    has_password = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ("id", "email", "username", "avatar", "role", "createdAt", "updatedAt")
-        read_only_fields = ("id", "email", "createdAt", "updatedAt")
+        fields = ("id", "email", "username", "avatar", "role", "createdAt", "updatedAt", "has_password")
+        read_only_fields = ("id", "email", "createdAt", "updatedAt", "has_password")
+
+    def get_has_password(self, obj) -> bool:
+        return obj.has_usable_password()
 
 
 # ---------------------------------------------------------------------------
