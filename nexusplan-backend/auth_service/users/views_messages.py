@@ -8,6 +8,9 @@ from django.db.models import Q
 from .models import User, DirectMessage, GroupMessage, Notification
 
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "").strip()
+NEXUS_AI_EMAIL = os.environ.get("NEXUS_AI_EMAIL", "nexus.ai@bot.local").strip().lower()
+NEXUS_AI_USERNAME = os.environ.get("NEXUS_AI_USERNAME", "Nexus AI").strip() or "Nexus AI"
+NEXUS_AI_AVATAR = os.environ.get("NEXUS_AI_AVATAR", "").strip() or None
 
 
 def _group_reply_preview(m: GroupMessage | None) -> dict | None:
@@ -27,6 +30,37 @@ def _group_reply_preview(m: GroupMessage | None) -> dict | None:
 def verify_internal_key(request):
     key = request.headers.get("X-Internal-Key")
     return key and key == INTERNAL_API_KEY
+
+
+@api_view(["POST"])
+@permission_classes([AllowAny])
+def ensure_nexus_ai_user(request):
+    """Internal endpoint: create/retrieve the Nexus AI bot account and return its id."""
+    if not verify_internal_key(request):
+        return Response({"error": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    user = User.objects.filter(email__iexact=NEXUS_AI_EMAIL).first()
+    if not user:
+        user = User.objects.create_user(
+            email=NEXUS_AI_EMAIL,
+            username=NEXUS_AI_USERNAME,
+            password=None,
+            avatar=NEXUS_AI_AVATAR,
+        )
+
+    if not user.avatar and NEXUS_AI_AVATAR:
+        user.avatar = NEXUS_AI_AVATAR
+        user.save(update_fields=["avatar"])
+
+    return Response(
+        {
+            "status": "ok",
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "avatar": user.avatar,
+        }
+    )
 
 @api_view(["PUT"])
 @permission_classes([AllowAny])

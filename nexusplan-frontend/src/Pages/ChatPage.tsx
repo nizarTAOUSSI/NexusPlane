@@ -29,6 +29,7 @@ interface Message {
 }
 
 function mentionHandle(m: TeamMember): string {
+  if (m.userId === 'nexus-ai') return 'nexus-ai';
   const u = (m.username || '').trim();
   if (u) return u;
   const email = m.email || '';
@@ -159,6 +160,17 @@ interface FoundUser {
   email: string;
   avatar: string | null;
 }
+
+const NEXUS_AI_MENTION_MEMBER: TeamMember = {
+  id: 'nexus-ai',
+  teamId: 'nexus-ai',
+  userId: 'nexus-ai',
+  username: 'Nexus AI',
+  email: 'nexus.ai@bot.local',
+  avatar: null,
+  role: 'MEMBER',
+  joinedAt: '',
+};
 
 const GroupAvatarCluster: React.FC<{
   members: TeamMember[];
@@ -473,13 +485,20 @@ const ChatPage: React.FC = () => {
       if (match) {
         const q = match[1].toLowerCase();
         const members = (roomMembers[activeRoom.id] ?? []).filter(m => m.userId !== user.id);
-        const filteredM = q
+        let filteredM = q
           ? members.filter(m => {
               const h = mentionHandle(m).toLowerCase();
               const email = (m.email || '').toLowerCase();
               return h.includes(q) || email.includes(q);
             })
           : members;
+
+        const aiTokens = ['nexus', 'ai', 'nexusai', 'nexus-ai', 'nexus_ai'];
+        const aiMatch = !q || aiTokens.some(token => token.includes(q));
+        if (aiMatch) {
+          filteredM = [NEXUS_AI_MENTION_MEMBER, ...filteredM];
+        }
+
         setMentionList(filteredM.slice(0, 8));
         setMentionOpen(filteredM.length > 0);
         setMentionHighlight(0);
@@ -516,7 +535,11 @@ const ChatPage: React.FC = () => {
 
   const groupMemberHandles = useMemo(() => {
     if (activeRoom?.type !== 'group') return new Set<string>();
-    return mentionHandleSet(roomMembers[activeRoom.id] ?? []);
+    const handles = mentionHandleSet(roomMembers[activeRoom.id] ?? []);
+    handles.add('nexus-ai');
+    handles.add('nexus_ai');
+    handles.add('nexusai');
+    return handles;
   }, [activeRoom?.type, activeRoom?.id, roomMembers]);
 
   const insertMention = useCallback((m: TeamMember) => {

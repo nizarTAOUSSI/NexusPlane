@@ -16,6 +16,7 @@ const io = new Server(server, {
 });
 
 const DJANGO_URL        = process.env.DJANGO_URL        || 'http://localhost:8000';
+const AI_SERVICE_URL    = process.env.AI_SERVICE_URL    || 'http://ai_service:8000';
 const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY  || '';
 const PORT              = process.env.PORT              || 5000;
 
@@ -24,9 +25,12 @@ const API_STORE_DM           = process.env.API_STORE_DM           || '/api/messa
 const API_STORE_GROUP_MSG    = process.env.API_STORE_GROUP_MSG    || '/api/messages/group/store/';
 const API_STORE_NOTIFICATION = process.env.API_STORE_NOTIFICATION || '/api/messages/notifications/store/';
 const API_MARK_DM_READ       = process.env.API_MARK_DM_READ       || '/api/messages/direct/mark-read/';
+const API_ENSURE_NEXUS_AI    = process.env.API_ENSURE_NEXUS_AI    || '/api/messages/system/nexus-ai/ensure/';
+const API_AI_COPILOT         = process.env.API_AI_COPILOT         || '/api/ai/copilot/';
 
 console.log('🚀 NexusPlan Chat Service starting…');
 console.log('   DJANGO_URL :', DJANGO_URL);
+console.log('   AI_SERVICE_URL :', AI_SERVICE_URL);
 console.log('   INTERNAL_API_KEY :', INTERNAL_API_KEY ? '✅ set' : '⚠️  missing');
 
 
@@ -41,6 +45,28 @@ const resolveUrl = (template, params = {}) =>
         (url, [k, v]) => url.replace(`:${k}`, v),
         `${DJANGO_URL}${template}`
     );
+
+const resolveAiUrl = (template) => `${AI_SERVICE_URL}${template}`;
+
+let nexusAiUserIdCache = null;
+
+function messageMentionsNexusAI(text = '') {
+    return /@nexus(?:[\s_-]*ai)\b/i.test(String(text));
+}
+
+function cleanNexusAiMention(text = '') {
+    return String(text).replace(/@nexus(?:[\s_-]*ai)\b/gi, '').trim();
+}
+
+async function ensureNexusAiUserId() {
+    if (nexusAiUserIdCache) return nexusAiUserIdCache;
+    const data = await djangoFetch(resolveUrl(API_ENSURE_NEXUS_AI), 'POST', {});
+    if (data?.id) {
+        nexusAiUserIdCache = String(data.id);
+        return nexusAiUserIdCache;
+    }
+    return null;
+}
 
 async function djangoFetch(url, method = 'POST', body, headers = internalHeaders) {
     try {
@@ -59,6 +85,62 @@ async function djangoFetch(url, method = 'POST', body, headers = internalHeaders
         console.error(`[django] fetch error: ${err.message}`);
         return null;
     }
+}
+
+async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketName, originalMessage, replyToId }) {
+    if (!senderId || !roomId || !messageMentionsNexusAI(originalMessage)) return;
+
+    const aiUserId = await ensureNexusAiUserId();
+    if (!aiUserId || String(senderId) === String(aiUserId)) return;
+
+    const prompt = cleanNexusAiMention(originalMessage) || 'Please help with this team chat request.';
+    const aiPayload = {
+        message: prompt,
+        context: {
+            source: 'group_chat',
+            roomId,
+            roomType,
+        },
+    };
+
+    const aiResponse = await djangoFetch(
+        resolveAiUrl(API_AI_COPILOT),
+        'POST',
+        aiPayload,
+        {
+            'Content-Type': 'application/json',
+            'X-User-Id': String(senderId),
+        }
+    );
+
+    const replyText = aiResponse?.reply ? String(aiResponse.reply).trim() : '';
+    if (!replyText) return;
+
+    const savedAi = await djangoFetch(
+        resolveUrl(API_STORE_GROUP_MSG),
+        'POST',
+        {
+            sender_id: aiUserId,
+            room_id: roomId,
+            room_type: roomType || 'group',
+            message: replyText,
+            reply_to_id: replyToId || null,
+        }
+    );
+
+    if (!savedAi || savedAi.status !== 'ok') return;
+
+    io.to(roomSocketName).emit('receiveMessage', {
+        type: 'group',
+        roomId,
+        roomType: roomType || 'group',
+        senderId: aiUserId,
+        senderName: savedAi.senderName || 'Nexus AI',
+        message: replyText,
+        timestamp: new Date().toISOString(),
+        id: savedAi.id,
+        replyTo: savedAi.replyTo || undefined,
+    });
 }
 
 const usersOnline = {};
@@ -216,6 +298,15 @@ io.on('connection', (socket) => {
         };
 
         io.to(room).emit('receiveMessage', payload);
+
+        await maybeSendNexusAiReply({
+            senderId,
+            roomId,
+            roomType,
+            roomSocketName: room,
+            originalMessage: message,
+            replyToId: saved.id,
+        });
     });
 
     socket.on('typing', ({ room, isTyping }) => {
