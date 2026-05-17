@@ -16,7 +16,7 @@ const io = new Server(server, {
 });
 
 const DJANGO_URL        = process.env.DJANGO_URL        || 'http://localhost:8000';
-const AI_SERVICE_URL    = process.env.AI_SERVICE_URL    || 'http://ai_service:8000';
+const COPILOT_ENDPOINT_URL = process.env.COPILOT_ENDPOINT_URL || 'http://api_gateway/api/ai/copilot/';
 const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY  || '';
 const PORT              = process.env.PORT              || 5000;
 
@@ -26,11 +26,10 @@ const API_STORE_GROUP_MSG    = process.env.API_STORE_GROUP_MSG    || '/api/messa
 const API_STORE_NOTIFICATION = process.env.API_STORE_NOTIFICATION || '/api/messages/notifications/store/';
 const API_MARK_DM_READ       = process.env.API_MARK_DM_READ       || '/api/messages/direct/mark-read/';
 const API_ENSURE_NEXUS_AI    = process.env.API_ENSURE_NEXUS_AI    || '/api/messages/system/nexus-ai/ensure/';
-const API_AI_COPILOT         = process.env.API_AI_COPILOT         || '/api/ai/copilot/';
 
 console.log('🚀 NexusPlan Chat Service starting…');
 console.log('   DJANGO_URL :', DJANGO_URL);
-console.log('   AI_SERVICE_URL :', AI_SERVICE_URL);
+console.log('   COPILOT_ENDPOINT_URL :', COPILOT_ENDPOINT_URL);
 console.log('   INTERNAL_API_KEY :', INTERNAL_API_KEY ? '✅ set' : '⚠️  missing');
 
 
@@ -45,8 +44,6 @@ const resolveUrl = (template, params = {}) =>
         (url, [k, v]) => url.replace(`:${k}`, v),
         `${DJANGO_URL}${template}`
     );
-
-const resolveAiUrl = (template) => `${AI_SERVICE_URL}${template}`;
 
 let nexusAiUserIdCache = null;
 
@@ -139,7 +136,7 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
     };
 
     const aiResponse = await fetchJsonDetailed(
-        resolveAiUrl(API_AI_COPILOT),
+        COPILOT_ENDPOINT_URL,
         'POST',
         aiPayload,
         {
