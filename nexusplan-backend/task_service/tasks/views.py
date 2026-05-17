@@ -229,6 +229,7 @@ class TaskViewSet(
             200: TaskSerializer,
             400: OpenApiResponse(description="Invalid or missing status value."),
         },
+    )
     @action(detail=True, methods=["patch"], url_path="status")
     def update_status(self, request: Request, pk=None) -> Response: 
         """Transition the task to a new status (UML: updateStatus())."""
