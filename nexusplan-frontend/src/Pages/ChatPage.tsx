@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import api from '../api';
 import { useChatContext, type ChatRoom } from '../context/ChatContext';
 import type { TeamMember } from '../teamsApi';
+import { RiGroupLine } from "react-icons/ri";
+
 
 interface ReplyRef {
   id: string;
@@ -142,7 +144,7 @@ const GroupAvatarCluster: React.FC<{
 
   const pos2: React.CSSProperties[] = [
     { top: 0, left: 0 },
-    { bottom: 0, right: 0 },
+    { top: '28%', left: '28%' },
   ];
   const pos3: React.CSSProperties[] = [
     { top: 0, left: 0 },
@@ -210,8 +212,14 @@ const ChatPage: React.FC = () => {
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
-  const [showPanel, setShowPanel] = useState(true);
+  const [showPanel, setShowPanel] = useState(() => (window.innerWidth >= 768));
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+
+  useEffect(() => {
+    if (mobileView === 'chat' && window.innerWidth < 768) {
+      setShowPanel(false);
+    }
+  }, [mobileView]);
 
   const [showNewChatModal, setShowNewChatModal] = useState(false);
   const [newChatEmail, setNewChatEmail] = useState('');
@@ -629,12 +637,19 @@ const ChatPage: React.FC = () => {
                 <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-            {activeRoom.type === 'dm' && activeRoom.avatar
-              ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-              : <AvatarChip name={activeRoom.name} size={40} color={colorFor(activeRoom.id)} />
-            }
+            {activeRoom.type === 'dm'
+                  ? (activeRoom.avatar
+                      ? <img src={activeRoom.avatar} alt={activeRoom.name} style={{ width: 42, height: 42, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      : <AvatarChip name={activeRoom.name} size={42} color={colorFor(activeRoom.id)} />
+                    )
+                  : (roomMembers[activeRoom.id]?.length
+                      ? <GroupAvatarCluster members={roomMembers[activeRoom.id]} totalCount={activeRoom.members} size={42} />
+                      : <AvatarChip name={activeRoom.name} size={42} color={colorFor(activeRoom.id)} />
+                    )
+                }
             <div>
               <p className="chat-topbar-name">{activeRoom.name}</p>
+              <p className='chat-topbar-meta flex items-center font-semibold'> <RiGroupLine size={14}/> {activeRoom?.members}</p> 
               {/* <p className="chat-topbar-meta">
                 {activeRoom.type === 'group'
                   ? `${activeRoom.members ?? 0} members`
@@ -747,16 +762,26 @@ const ChatPage: React.FC = () => {
             );
           })}
 
-          {typing && (
-            <div className="chat-msg-row">
-              <div className="chat-msg-avatar">
-                <AvatarChip name={typing} size={32} color={colorFor(typing)} />
+          {typing && (() => {
+            const typingMember =
+              (roomMembers[activeRoom.id] ?? []).find(m => m.userId === typing) ??
+              (rooms.find(r => r.type === 'dm' && r.id === typing) as any);
+            const typingName = typingMember?.username || typingMember?.name || typingMember?.email || typing;
+            const typingAvatar = typingMember?.avatar ?? null;
+            return (
+              <div className="chat-msg-row">
+                <div className="chat-msg-avatar">
+                  {typingAvatar
+                    ? <img src={typingAvatar} alt={typingName} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                    : <AvatarChip name={typingName} size={32} color={colorFor(typing)} />
+                  }
+                </div>
+                <div className="chat-bubble chat-bubble--typing">
+                  <span className="chat-typing-dot" /><span className="chat-typing-dot" /><span className="chat-typing-dot" />
+                </div>
               </div>
-              <div className="chat-bubble chat-bubble--typing">
-                <span className="chat-typing-dot" /><span className="chat-typing-dot" /><span className="chat-typing-dot" />
-              </div>
-            </div>
-          )}
+            );
+          })()}
           <div ref={bottomRef} />
         </div>
 
