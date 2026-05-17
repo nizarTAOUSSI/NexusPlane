@@ -17,7 +17,8 @@ const io = new Server(server, {
 
 const DJANGO_URL        = process.env.DJANGO_URL        || 'http://localhost:8000';
 const COPILOT_ENDPOINT_URL = process.env.COPILOT_ENDPOINT_URL || 'http://ai_service:8000/api/ai/copilot/';
-const COPILOT_ENDPOINT_FALLBACK_URL = process.env.COPILOT_ENDPOINT_FALLBACK_URL || 'http://nexusplan.duckdns.org/api/ai/copilot/';
+const COPILOT_ENDPOINT_FALLBACK_URL = process.env.COPILOT_ENDPOINT_FALLBACK_URL || 'https://nexusplan.duckdns.org/api/ai/copilot/';
+const COPILOT_INTERNAL_HOST_HEADER = process.env.COPILOT_INTERNAL_HOST_HEADER || 'ai_service';
 const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY  || '';
 const PORT              = process.env.PORT              || 5000;
 
@@ -32,6 +33,7 @@ console.log('🚀 NexusPlan Chat Service starting…');
 console.log('   DJANGO_URL :', DJANGO_URL);
 console.log('   COPILOT_ENDPOINT_URL :', COPILOT_ENDPOINT_URL);
 console.log('   COPILOT_ENDPOINT_FALLBACK_URL :', COPILOT_ENDPOINT_FALLBACK_URL);
+console.log('   COPILOT_INTERNAL_HOST_HEADER :', COPILOT_INTERNAL_HOST_HEADER);
 console.log('   INTERNAL_API_KEY :', INTERNAL_API_KEY ? '✅ set' : '⚠️  missing');
 
 
@@ -159,14 +161,20 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
     let aiEndpointUsed = '';
 
     for (const endpoint of endpointCandidates) {
+        const endpointHeaders = {
+            'Content-Type': 'application/json',
+            'X-User-Id': String(senderId),
+        };
+
+        if (endpoint.includes('ai_service')) {
+            endpointHeaders.Host = COPILOT_INTERNAL_HOST_HEADER;
+        }
+
         const attempt = await fetchJsonDetailed(
             endpoint,
             'POST',
             aiPayload,
-            {
-                'Content-Type': 'application/json',
-                'X-User-Id': String(senderId),
-            }
+            endpointHeaders
         );
 
         if (attempt.ok && attempt?.data?.reply) {
