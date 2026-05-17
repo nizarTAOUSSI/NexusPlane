@@ -517,6 +517,17 @@ const ProjectDetailPage: React.FC = () => {
   const [quitting, setQuitting] = useState(false);
   const { user } = useAuth();
 
+  const currentUserRole = members.find(m => m.userId === user?.id)?.role;
+  const isProjectOwner = !!project && project.ownerId === user?.id;
+  const isProjectManager = currentUserRole === 'MANAGER';
+
+  const canKickMember = (m: Membership) => {
+    if (m.role === 'OWNER') return false;
+    if (isProjectOwner) return true;
+    if (isProjectManager && (m.role === 'VIEWER' || m.role === 'CONTRIBUTOR')) return true;
+    return false;
+  };
+
   const fetchAll = async () => {
     if (!id) return;
     setLoading(true); setError('');
@@ -803,7 +814,7 @@ const ProjectDetailPage: React.FC = () => {
                   {m.role}
                 </span>
 
-                {project.ownerId === user?.id && m.role !== 'OWNER' && (
+                {canKickMember(m) && (
                   <button
                     className="pd-kick-btn"
                     title="Remove member"

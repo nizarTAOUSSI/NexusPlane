@@ -158,10 +158,11 @@ const roleBadgeClass: Record<string, string> = {
 
 const MemberTable: React.FC<{
   members: TeamMember[];
-  isOwner: boolean;
+  canKick: (m: TeamMember) => boolean;
   kicking: string | null;
   onKick: (m: TeamMember) => void;
-}> = ({ members, isOwner, kicking, onKick }) => {
+}> = ({ members, canKick, kicking, onKick }) => {
+  const hasKickCol = members.some(canKick);
   const [search, setSearch] = useState('');
   const [sortCol, setSortCol] = useState<'name' | 'role' | 'joinedAt'>('joinedAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -213,13 +214,13 @@ const MemberTable: React.FC<{
                 Join Date <SortIcon col="joinedAt" />
               </th>
               <th className="tm-tbl-th">Email</th>
-              {isOwner && <th className="tm-tbl-th" />}
+              {hasKickCol && <th className="tm-tbl-th" />}
             </tr>
           </thead>
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={isOwner ? 5 : 4} className="tm-tbl-empty">
+                <td colSpan={hasKickCol ? 5 : 4} className="tm-tbl-empty">
                   <Users size={28} strokeWidth={1} style={{ opacity: 0.2 }} />
                   <p>{search ? 'No members match your search.' : 'No members yet.'}</p>
                 </td>
@@ -264,9 +265,9 @@ const MemberTable: React.FC<{
                   <td className="tm-tbl-td tm-tbl-td--email">{m.email || '—'}</td>
 
                   {/* Kick */}
-                  {isOwner && (
+                  {hasKickCol && (
                     <td className="tm-tbl-td tm-tbl-td--action">
-                      {m.role !== 'OWNER' && (
+                      {canKick(m) && (
                         <button
                           className="tm-tbl-kick"
                           title="Remove member"
@@ -306,6 +307,13 @@ const TeamsPage: React.FC = () => {
   const [teamDropOpen, setTeamDropOpen] = useState(false);
 
   const isOwner = !!activeTeam && !!currentUserId && activeTeam.ownerId === currentUserId;
+  const isAdmin = !isOwner && members.some(m => m.userId === currentUserId && m.role === 'ADMIN');
+  const canKick = (m: TeamMember) => {
+    if (m.role === 'OWNER') return false;
+    if (isOwner) return true;
+    if (isAdmin && m.role === 'MEMBER') return true;
+    return false;
+  };
 
   const fetchTeams = async () => {
     if (!currentUserId) return;
@@ -438,7 +446,7 @@ const TeamsPage: React.FC = () => {
             </div>
           )}
 
-          {activeTeam && isOwner && (
+          {activeTeam && (isOwner || isAdmin) && (
             <button className="projects-btn-primary" onClick={() => setShowInvite(true)}>
               <UserPlus size={15} /> Invite Member
             </button>
@@ -473,7 +481,7 @@ const TeamsPage: React.FC = () => {
       ) : (
         <MemberTable
           members={members}
-          isOwner={isOwner}
+          canKick={canKick}
           kicking={kicking}
           onKick={handleKick}
         />
