@@ -46,7 +46,7 @@ def _redis():
     )
 
 
-INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "").strip()
 
 
 def _send_async(fn, **kwargs) -> None:
@@ -68,8 +68,9 @@ def _send_notification(
         try:
             auth_url = getattr(django_settings, "AUTH_SERVICE_URL", "").rstrip("/")
             if not auth_url:
+                logger.warning("AUTH_SERVICE_URL is not configured; notification %s skipped", notif_type)
                 return
-            http_requests.post(
+            resp = http_requests.post(
                 f"{auth_url}/api/messages/notifications/store/",
                 json={
                     "user_id": user_id,
@@ -77,9 +78,20 @@ def _send_notification(
                     "type": notif_type,
                     "data": data,
                 },
-                headers={"X-Internal-Key": INTERNAL_API_KEY},
+                headers={
+                    "X-Internal-Key": INTERNAL_API_KEY,
+                    "Host": "localhost",
+                },
                 timeout=5,
             )
+            if resp.status_code >= 400:
+                logger.warning(
+                    "Notification store failed type=%s user_id=%s status=%s body=%s",
+                    notif_type,
+                    user_id,
+                    resp.status_code,
+                    (resp.text or "")[:300],
+                )
         except Exception as exc:
             logger.warning("Failed to send notification %s to %s: %s", notif_type, user_id, exc)
     threading.Thread(target=_do, daemon=True).start()
@@ -100,6 +112,10 @@ def _get_user_by_email(email: str) -> dict | None:
             resp = http_requests.get(
                 f"{auth_url}/api/auth/lookup/",
                 params={"email": email},
+                headers={
+                    "Host": "localhost",
+                    "X-Internal-Key": INTERNAL_API_KEY,
+                },
                 timeout=10,
             )
             if resp.status_code == 200:
@@ -120,9 +136,10 @@ def _get_user_by_email(email: str) -> dict | None:
                 return data
             else:
                 logger.warning(
-                    "auth_service lookup returned HTTP %d for email=%s — "
-                    "check ALLOWED_HOSTS includes 'auth_service'",
-                    resp.status_code, email,
+                    "auth_service lookup returned HTTP %d for email=%s body=%s",
+                    resp.status_code,
+                    email,
+                    (resp.text or "")[:300],
                 )
         else:
             logger.warning("AUTH_SERVICE_URL is not configured in project_service settings")

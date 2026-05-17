@@ -7,7 +7,7 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Q
 from .models import User, DirectMessage, GroupMessage, Notification
 
-INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "").strip()
 
 
 def _group_reply_preview(m: GroupMessage | None) -> dict | None:
