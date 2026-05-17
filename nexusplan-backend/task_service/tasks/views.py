@@ -1,3 +1,6 @@
+import os
+import requests
+
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -7,7 +10,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import ValidationError, PermissionDenied
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -22,11 +25,31 @@ from .serializers import (
 )
 
 _TASK_TAG = ["Tasks"]
+PROJECT_SERVICE_URL = os.environ.get("PROJECT_SERVICE_URL", "http://project_service:8000")
 
 
 def _get_requester_id(request: Request) -> str | None:
     """Extract the trusted user UUID injected by the API Gateway."""
     return request.headers.get("X-User-Id")
+
+
+def _get_user_role_in_project(user_id: str, project_id: str) -> str | None:
+    """Get the user's role in a project by querying the project_service."""
+    try:
+        resp = requests.get(
+            f"{PROJECT_SERVICE_URL}/api/projects/{project_id}/members/",
+            timeout=5,
+        )
+        if resp.status_code != 200:
+            return None
+        
+        members = resp.json()
+        for member in members:
+            if str(member.get("userId")) == str(user_id):
+                return member.get("role")
+        return None
+    except Exception:
+        return None
 
 
 
@@ -172,6 +195,16 @@ class TaskViewSet(
                     )
                 }
             )
+        
+        # Check user's role in the project
+        project_id = serializer.validated_data.get("projectId")
+        if project_id:
+            user_role = _get_user_role_in_project(str(creator_id), str(project_id))
+            if user_role == "VIEWER":
+                raise PermissionDenied(
+                    "Viewers cannot create tasks. Only Contributors and Managers can create tasks."
+                )
+        
         serializer.save(creatorId=creator_id)
 
     def update(self, request: Request, *args, **kwargs) -> Response:
@@ -196,12 +229,20 @@ class TaskViewSet(
             200: TaskSerializer,
             400: OpenApiResponse(description="Invalid or missing status value."),
         },
-        tags=_TASK_TAG,
-    )
     @action(detail=True, methods=["patch"], url_path="status")
     def update_status(self, request: Request, pk=None) -> Response: 
         """Transition the task to a new status (UML: updateStatus())."""
         task = self.get_object()
+        
+        # Check user's role in the project
+        user_id = _get_requester_id(request)
+        if user_id:
+            user_role = _get_user_role_in_project(str(user_id), str(task.projectId))
+            if user_role == "VIEWER":
+                raise PermissionDenied(
+                    "Viewers cannot update task status. Only Contributors and Managers can move tasks."
+                )
+        
         serializer = TaskStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         task.status = serializer.validated_data["status"]

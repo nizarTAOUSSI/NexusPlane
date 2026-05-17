@@ -49,6 +49,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
 
   const [members, setMembers] = useState<UserMeta[]>([]);
   const [userMap, setUserMap] = useState<Record<string, UserMeta>>(externalUserMap);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -175,8 +176,10 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
       const map: Record<string, UserMeta> = { ...externalUserMap };
       meta.forEach(m => { map[m.id] = m; });
       setUserMap(map);
+      const userRole = memberships.find(m => m.userId === user?.id)?.role || null;
+      setCurrentUserRole(userRole);
     }).catch(() => { });
-  }, [projectId]);
+  }, [projectId, user?.id]);
 
   const loadTasks = useCallback(async () => {
     if (!projectId) return;
@@ -306,7 +309,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
           <button
             className="kb-ai-btn"
             onClick={() => setShowAI(true)}
-            title="Generate tasks with AI"
+            disabled={currentUserRole === 'VIEWER'}
+            title={currentUserRole === 'VIEWER' ? 'Viewers can only view or summarize tasks' : 'Generate tasks with AI'}
           >
             <Sparkles size={14} />
             <span>Generate with AI</span>
@@ -368,7 +372,12 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
                       </span>
                     </div>
                     {col.id === TaskStatus.TODO && projectId && (
-                      <button className="kb-add-btn" onClick={() => setShowModal(true)} title="Add task">
+                      <button
+                        className="kb-add-btn"
+                        onClick={() => setShowModal(true)}
+                        disabled={currentUserRole === 'VIEWER'}
+                        title={currentUserRole === 'VIEWER' ? 'Viewers can only view or summarize tasks' : 'Add task'}
+                      >
                         <Plus size={15} />
                       </button>
                     )}
@@ -394,6 +403,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({ userMap: externalUserMap = {} }) 
                             userMap={userMap}
                             onEdit={handleEdit}
                             onDelete={handleDelete}
+                            isViewerRole={currentUserRole === 'VIEWER'}
                           />
                         ))}
                         {provided.placeholder}

@@ -2596,9 +2596,15 @@ html {
   background: var(--surface-hover);
   color: var(--text-2);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s, opacity 0.15s;
 }
-.kb-add-btn:hover { background: var(--accent); color: #fff; }
+.kb-add-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+.kb-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: var(--surface-hover);
+  color: var(--text-3);
+}
 
 .kb-loading, .kb-error {
   display: flex;
@@ -3442,14 +3448,21 @@ html {
   transition: all 0.18s ease;
   white-space: nowrap;
 }
-.kb-ai-btn:hover {
+.kb-ai-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.15) 100%);
   border-color: rgba(99, 102, 241, 0.65);
   color: var(--accent-hover);
   transform: translateY(-1px);
   box-shadow: var(--accent-glow);
 }
-.kb-ai-btn:active { transform: translateY(0); }
+.kb-ai-btn:active:not(:disabled) { transform: translateY(0); }
+.kb-ai-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.04) 0%, rgba(139, 92, 246, 0.04) 100%);
+  border-color: rgba(99, 102, 241, 0.2);
+  color: var(--text-3);
+}
 
 /* ---- Overlay ---- */
 .ai-overlay {

@@ -56,10 +56,11 @@ interface TaskCardProps {
   userMap?: Record<string, UserMeta>;
   onEdit?: (task: Task) => void;
   onDelete?: (taskId: string) => Promise<void>;
+  isViewerRole?: boolean;
 }
 
 
-const TaskCard: React.FC<TaskCardProps> = ({ task, index, userMap = {}, onEdit, onDelete }) => {
+const TaskCard: React.FC<TaskCardProps> = ({ task, index, userMap = {}, onEdit, onDelete, isViewerRole = false }) => {
   const priority = PRIORITY_CONFIG[task.priority] ?? PRIORITY_CONFIG[TaskPriority.MEDIUM];
   const overdue = task.dueDate && isOverdue(task.dueDate);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -77,7 +78,7 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, index, userMap = {}, onEdit, 
   };
 
   return (
-    <Draggable draggableId={task.id} index={index} isDragDisabled={confirmDel}>
+    <Draggable draggableId={task.id} index={index} isDragDisabled={confirmDel || isViewerRole}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}

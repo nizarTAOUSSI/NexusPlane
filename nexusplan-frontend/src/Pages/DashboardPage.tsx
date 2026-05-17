@@ -15,6 +15,7 @@ import { setNote } from '../store/notesSlice';
 import { setImage } from '../store/imagesSlice';
 import type { RootState, AppDispatch } from '../store';
 
+
 function aggregateByStatus(tasks: Task[]): Record<string, number> {
   const acc: Record<string, number> = {
     [TaskStatus.TODO]: 0,
@@ -235,7 +236,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
             Dashboard
           </div>
           <h1 className="dash-title dash-title--orbit">
-            Hello, {user.username ?? 'Operator'} 👋
+            Hello, {user.username ?? 'Operator'}
           </h1>
           <p className="dash-subtitle dash-subtitle--orbit">
             Drag widgets to reorganize your workspace. Layout is saved automatically.
