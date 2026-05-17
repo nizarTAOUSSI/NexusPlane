@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { IoFolderOutline } from 'react-icons/io5';
 import { LuKanban } from 'react-icons/lu';
+import ProfileManager from './ProfileManager';
 
 const NAV_ITEMS = [
   {
@@ -138,6 +139,7 @@ export const TopNavbar: React.FC<{ onMobileMenuToggle?: () => void }> = ({ onMob
   const { user, logout } = useAuth();
   const [userOpen, setUserOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [profileManagerOpen, setProfileManagerOpen] = useState(false);
   const notifWrapRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -342,6 +344,16 @@ export const TopNavbar: React.FC<{ onMobileMenuToggle?: () => void }> = ({ onMob
                   </div>
                 </div>
                 <div className="nb-user-menu-divider" />
+                <button
+                  className="nb-user-menu-item"
+                  onClick={() => {
+                    setUserOpen(false);
+                    setProfileManagerOpen(true);
+                  }}
+                >
+                  <Settings size={14} />
+                  <span>Profile Settings</span>
+                </button>
                 <button className="nb-user-menu-item nb-user-menu-item--danger" onClick={handleLogout}>
                   <LogOut size={14} />
                   <span>Sign out</span>
@@ -351,6 +363,11 @@ export const TopNavbar: React.FC<{ onMobileMenuToggle?: () => void }> = ({ onMob
           </AnimatePresence>
         </div>
       </div>
+
+      <ProfileManager 
+        isOpen={profileManagerOpen} 
+        onClose={() => setProfileManagerOpen(false)} 
+      />
     </header>
   );
 };
@@ -361,8 +378,11 @@ const Sidebar: React.FC<{ isMobileOpen?: boolean; onMobileClose?: () => void }> 
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [subOpen, setSubOpen] = useState<string | null>('dashboard');
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [profileManagerOpen, setProfileManagerOpen] = useState(false);
   const { rooms } = useChatContext();
   const {
     query,
@@ -634,18 +654,47 @@ const Sidebar: React.FC<{ isMobileOpen?: boolean; onMobileClose?: () => void }> 
       </div>
 
       <div className="sb-footer">
-        <button className="sb-settings sb-item" title={collapsed ? 'Settings' : undefined}>
+        <button 
+          className="sb-settings sb-item" 
+          title={collapsed ? 'Profile Settings' : undefined}
+          onClick={() => setProfileManagerOpen(true)}
+        >
           <span className="sb-item-icon"><Settings size={18} strokeWidth={2} /></span>
           <AnimatePresence initial={false}>
             {!collapsed && (
               <motion.span className="sb-item-label"
                 initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
                 transition={{ duration: 0.15 }}
-              >Settings</motion.span>
+              >Profile Settings</motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+
+        <button 
+          className="sb-settings sb-item" 
+          title={collapsed ? 'Sign out' : undefined}
+          onClick={async () => {
+            await logout();
+            navigate('/login');
+          }}
+        >
+          <span className="sb-item-icon"><LogOut size={18} strokeWidth={2} /></span>
+          <AnimatePresence initial={false}>
+            {!collapsed && (
+              <motion.span className="sb-item-label"
+                initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+                transition={{ duration: 0.15 }}
+                style={{ color: '#dc2626' }}
+              >Sign out</motion.span>
             )}
           </AnimatePresence>
         </button>
       </div>
+
+      <ProfileManager 
+        isOpen={profileManagerOpen} 
+        onClose={() => setProfileManagerOpen(false)} 
+      />
     </motion.aside>
     </>
   );
