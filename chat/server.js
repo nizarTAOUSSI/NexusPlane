@@ -16,8 +16,8 @@ const io = new Server(server, {
 });
 
 const DJANGO_URL        = process.env.DJANGO_URL        || 'http://localhost:8000';
-const COPILOT_ENDPOINT_URL = process.env.COPILOT_ENDPOINT_URL || 'http://api_gateway/api/ai/copilot/';
-const COPILOT_ENDPOINT_FALLBACK_URL = process.env.COPILOT_ENDPOINT_FALLBACK_URL || 'http://ai_service:8000/api/ai/copilot/';
+const COPILOT_ENDPOINT_URL = process.env.COPILOT_ENDPOINT_URL || 'http://ai_service:8000/api/ai/copilot/';
+const COPILOT_ENDPOINT_FALLBACK_URL = process.env.COPILOT_ENDPOINT_FALLBACK_URL || 'http://nexusplan.duckdns.org/api/ai/copilot/';
 const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY  || '';
 const PORT              = process.env.PORT              || 5000;
 
@@ -55,6 +55,20 @@ function messageMentionsNexusAI(text = '') {
 
 function cleanNexusAiMention(text = '') {
     return String(text).replace(/@nexus(?:[\s_-]*ai)\b/gi, '').trim();
+}
+
+function buildNexusAiPrompt(text = '') {
+    const cleaned = cleanNexusAiMention(text);
+    if (cleaned.length >= 3) {
+        return cleaned;
+    }
+
+    const original = String(text).trim();
+    if (original.length >= 3) {
+        return `Please respond to this team chat message: ${original}`;
+    }
+
+    return 'Please help with this team chat request.';
 }
 
 async function ensureNexusAiUserId() {
@@ -127,7 +141,7 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
         return;
     }
 
-    const prompt = cleanNexusAiMention(originalMessage) || 'Please help with this team chat request.';
+    const prompt = buildNexusAiPrompt(originalMessage);
     const aiPayload = {
         message: prompt,
         context: {

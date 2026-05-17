@@ -37,8 +37,8 @@ services:
     environment:
       - PORT=5000
       - DJANGO_URL=http://auth_service:8000
-      - COPILOT_ENDPOINT_URL=http://api_gateway/api/ai/copilot/
-      - COPILOT_ENDPOINT_FALLBACK_URL=http://ai_service:8000/api/ai/copilot/
+      - COPILOT_ENDPOINT_URL=http://ai_service:8000/api/ai/copilot/
+      - COPILOT_ENDPOINT_FALLBACK_URL=http://nexusplan.duckdns.org/api/ai/copilot/
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     depends_on:
       - auth_service

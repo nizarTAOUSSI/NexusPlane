@@ -15,7 +15,13 @@ SECRET_KEY = os.environ.get(
 )
 
 DEBUG = os.environ.get("DEBUG", "True") == "True"
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",")
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "*").split(",") + [
+    "localhost",
+    "127.0.0.1",
+    "ai_service",
+    "chat_service",
+    "api_gateway",
+]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
