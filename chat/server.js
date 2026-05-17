@@ -17,6 +17,7 @@ const io = new Server(server, {
 
 const DJANGO_URL        = process.env.DJANGO_URL        || 'http://localhost:8000';
 const COPILOT_ENDPOINT_URL = process.env.COPILOT_ENDPOINT_URL || 'http://api_gateway/api/ai/copilot/';
+const COPILOT_ENDPOINT_FALLBACK_URL = process.env.COPILOT_ENDPOINT_FALLBACK_URL || 'http://ai_service:8000/api/ai/copilot/';
 const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY  || '';
 const PORT              = process.env.PORT              || 5000;
 
@@ -30,6 +31,7 @@ const API_ENSURE_NEXUS_AI    = process.env.API_ENSURE_NEXUS_AI    || '/api/messa
 console.log('🚀 NexusPlan Chat Service starting…');
 console.log('   DJANGO_URL :', DJANGO_URL);
 console.log('   COPILOT_ENDPOINT_URL :', COPILOT_ENDPOINT_URL);
+console.log('   COPILOT_ENDPOINT_FALLBACK_URL :', COPILOT_ENDPOINT_FALLBACK_URL);
 console.log('   INTERNAL_API_KEY :', INTERNAL_API_KEY ? '✅ set' : '⚠️  missing');
 
 
@@ -135,15 +137,43 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
         },
     };
 
-    const aiResponse = await fetchJsonDetailed(
-        COPILOT_ENDPOINT_URL,
-        'POST',
-        aiPayload,
-        {
-            'Content-Type': 'application/json',
-            'X-User-Id': String(senderId),
+    const endpointCandidates = [COPILOT_ENDPOINT_URL, COPILOT_ENDPOINT_FALLBACK_URL]
+        .map((u) => String(u || '').trim())
+        .filter(Boolean);
+
+    let aiResponse = null;
+    let aiEndpointUsed = '';
+
+    for (const endpoint of endpointCandidates) {
+        const attempt = await fetchJsonDetailed(
+            endpoint,
+            'POST',
+            aiPayload,
+            {
+                'Content-Type': 'application/json',
+                'X-User-Id': String(senderId),
+            }
+        );
+
+        if (attempt.ok && attempt?.data?.reply) {
+            aiResponse = attempt;
+            aiEndpointUsed = endpoint;
+            break;
         }
-    );
+
+        console.warn(
+            `[nexus-ai] Copilot endpoint attempt failed endpoint=${endpoint} status=${attempt.status} detail=${String(attempt?.data?.detail || attempt?.text || 'Unknown').slice(0, 200)}`
+        );
+
+        // Keep the last non-network failure for better user-facing reason text.
+        if (!aiResponse || aiResponse.status === 0) {
+            aiResponse = attempt;
+        }
+    }
+
+    if (aiEndpointUsed) {
+        console.log(`[nexus-ai] Copilot reply generated via endpoint=${aiEndpointUsed}`);
+    }
 
     let replyText = aiResponse?.data?.reply ? String(aiResponse.data.reply).trim() : '';
     if (!replyText) {
