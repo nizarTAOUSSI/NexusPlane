@@ -92,6 +92,35 @@ function fmtTime(iso: string) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
+function fmtSidebarTime(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  if (diffMs < 24 * 60 * 60 * 1000 && d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (now.getFullYear() === d.getFullYear()) {
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function fmtDateSep(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  if (now.getFullYear() === d.getFullYear()) {
+    return d.toLocaleDateString([], { month: 'long', day: 'numeric' });
+  }
+  return d.toLocaleDateString([], { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 const AvatarChip: React.FC<{ name: string; size?: number; color?: string }> = ({ name, size = 36, color = '#6366F1' }) => (
   <div style={{
     width: size, height: size, borderRadius: '50%', background: color,
@@ -476,9 +505,14 @@ const ChatPage: React.FC = () => {
     typingTimer.current = setTimeout(() => socket.emit('typing', { room, isTyping: false }), 1500);
   };
 
-  const filtered = rooms.filter(r =>
-    r.name.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = rooms
+    .filter(r => r.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (!a.lastTime && !b.lastTime) return 0;
+      if (!a.lastTime) return 1;
+      if (!b.lastTime) return -1;
+      return new Date(b.lastTime).getTime() - new Date(a.lastTime).getTime();
+    });
 
   const groupMemberHandles = useMemo(() => {
     if (activeRoom?.type !== 'group') return new Set<string>();
@@ -611,7 +645,7 @@ const ChatPage: React.FC = () => {
               <div className="chat-room-info">
                 <div className="chat-room-name-row">
                   <span className="chat-room-name">{room.name}</span>
-                  <span className="chat-room-time">{room.lastTime ? fmtTime(room.lastTime) : ''}</span>
+                  <span className="chat-room-time">{room.lastTime ? fmtSidebarTime(room.lastTime) : ''}</span>
                 </div>
                 <div className="chat-room-last-row">
                   <span className="chat-room-last">{room.lastMsg}</span>
@@ -690,6 +724,8 @@ const ChatPage: React.FC = () => {
           {messages.map((msg, i) => {
             const isMe = msg.senderId === user?.id || msg.senderName === 'You';
             const showAvatar = !isMe && (i === 0 || messages[i-1]?.senderId !== msg.senderId);
+            const prevMsg = i > 0 ? messages[i - 1] : null;
+            const showDateSep = !prevMsg || new Date(msg.timestamp).toDateString() !== new Date(prevMsg.timestamp).toDateString();
             
             let displayName = msg.senderName;
             if (!isMe && msg.senderId) {
@@ -708,7 +744,11 @@ const ChatPage: React.FC = () => {
             }
 
             return (
-              <div key={msg.id} className={`chat-msg-row${isMe ? ' chat-msg-row--me' : ''}`}>
+              <React.Fragment key={msg.id}>
+              {showDateSep && (
+                <div className="chat-date-sep"><span>{fmtDateSep(msg.timestamp)}</span></div>
+              )}
+              <div className={`chat-msg-row${isMe ? ' chat-msg-row--me' : ''}`}>
                 {!isMe && (
                   <div className="chat-msg-avatar">
                     {showAvatar
@@ -761,6 +801,7 @@ const ChatPage: React.FC = () => {
                   </p>
                 </div>
               </div>
+              </React.Fragment>
             );
           })}
 
