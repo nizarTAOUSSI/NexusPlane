@@ -18,6 +18,8 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ isOpen, onClose }) => {
   // Profile state
   const [username, setUsername] = useState(user?.username || '');
   const [avatar, setAvatar] = useState(user?.avatar || '');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState('');
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -26,9 +28,19 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ isOpen, onClose }) => {
   const [freshHasPassword, setFreshHasPassword] = useState<boolean | undefined>(user?.has_password);
 
   useEffect(() => {
+    return () => {
+      if (avatarPreviewUrl) {
+        URL.revokeObjectURL(avatarPreviewUrl);
+      }
+    };
+  }, [avatarPreviewUrl]);
+
+  useEffect(() => {
     if (isOpen) {
       setUsername(user?.username || '');
       setAvatar(user?.avatar || '');
+      setAvatarFile(null);
+      setAvatarPreviewUrl('');
       setFreshHasPassword(user?.has_password);
       
       api.get('/auth/profile/')
@@ -54,8 +66,23 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ isOpen, onClose }) => {
     setProfileLoading(true);
     setProfileMsg(null);
     try {
-      const res = await api.patch('/auth/profile/', { username, avatar });
+      let res;
+
+      if (avatarFile) {
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('avatar_file', avatarFile);
+
+        res = await api.patch('/auth/profile/', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      } else {
+        res = await api.patch('/auth/profile/', { username, avatar });
+      }
+
       updateUser({ username: res.data.username, avatar: res.data.avatar });
+      setAvatarFile(null);
+      setAvatarPreviewUrl('');
       setProfileMsg({ type: 'success', text: 'Profile updated successfully!' });
       setTimeout(() => setProfileMsg(null), 3000);
     } catch (err: any) {
@@ -142,33 +169,34 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ isOpen, onClose }) => {
               >
                 <div className="pm-avatar-section">
                   <div className="pm-avatar-wrap">
-                    <img src={avatar || 'https://i.pravatar.cc/150?img=11'} alt="Avatar" />
-                    {!isGoogleAuth && (
-                      <label className="pm-avatar-edit">
-                        <Camera size={14} />
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: 'none' }}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (ev) => {
-                                if (ev.target?.result) {
-                                  setAvatar(ev.target.result as string);
-                                }
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                        />
-                      </label>
-                    )}
+                    <img src={avatarPreviewUrl || avatar || 'https://i.pravatar.cc/150?img=11'} alt="Avatar" />
+                    <label className="pm-avatar-edit">
+                      <Camera size={14} />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setAvatarFile(file);
+                            const previewUrl = URL.createObjectURL(file);
+                            setAvatarPreviewUrl((prev) => {
+                              if (prev) {
+                                URL.revokeObjectURL(prev);
+                              }
+                              return previewUrl;
+                            });
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
                   <div className="pm-avatar-info">
                     <h4>Profile Picture</h4>
-                    <p>{isGoogleAuth ? 'Your avatar is managed by Google.' : 'Click the camera icon to upload a new picture, or paste an image URL below.'}</p>
+                    <p>
+                      Click the camera icon to upload a new picture, or paste an image URL below.
+                    </p>
                   </div>
                 </div>
 
@@ -177,10 +205,17 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ isOpen, onClose }) => {
                   <input
                     type="text"
                     value={avatar}
-                    onChange={(e) => setAvatar(e.target.value)}
+                    onChange={(e) => {
+                      setAvatar(e.target.value);
+                      setAvatarFile(null);
+                      setAvatarPreviewUrl((prev) => {
+                        if (prev) {
+                          URL.revokeObjectURL(prev);
+                        }
+                        return '';
+                      });
+                    }}
                     placeholder="https://..."
-                    disabled={isGoogleAuth}
-                    className={isGoogleAuth ? "pm-input-disabled" : ""}
                   />
                 </div>
 
@@ -231,8 +266,10 @@ const ProfileManager: React.FC<ProfileManagerProps> = ({ isOpen, onClose }) => {
                 onSubmit={handlePasswordSubmit}
               >
                 {isGoogleAuth ? (
-                  <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                    <AlertCircle size={48} color="var(--text-3)" style={{ marginBottom: '1rem' }} />
+                  <div  style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                    <div className="flex justify-center">
+                      <AlertCircle size={48} color="var(--text-3)" style={{ marginBottom: '1rem' }} />
+                    </div>
                     <h3 style={{ margin: '0 0 0.5rem', color: 'var(--text-1)' }}>Google Account</h3>
                     <p style={{ color: 'var(--text-2)', fontSize: '0.9rem', lineHeight: '1.5' }}>
                       Your account is linked to Google. Password management and security settings are handled by your Google account.

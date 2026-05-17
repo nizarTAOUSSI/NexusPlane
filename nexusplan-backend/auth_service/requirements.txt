@@ -10,3 +10,4 @@ gunicorn
 google-auth
 requests
 django-cors-headers
+Pillow

@@ -1,3 +1,9 @@
+import os
+import uuid
+from urllib.parse import urlparse
+
+from django.conf import settings
+from django.core.files.storage import default_storage
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 
@@ -12,16 +18,59 @@ from .models import User, UserRole
 class UserProfileSerializer(serializers.ModelSerializer):
     """Read / partial-update serializer for the authenticated user's profile."""
     has_password = serializers.SerializerMethodField()
+    avatar_file = serializers.ImageField(write_only=True, required=False)
 
     class Meta:
         model = User
-        fields = ("id", "email", "username", "avatar", "role", "createdAt", "updatedAt", "has_password")
+        fields = (
+            "id",
+            "email",
+            "username",
+            "avatar",
+            "avatar_file",
+            "role",
+            "createdAt",
+            "updatedAt",
+            "has_password",
+        )
         read_only_fields = ("id", "email", "createdAt", "updatedAt", "has_password")
 
     def get_has_password(self, obj) -> bool:
         if not obj.password:
             return False
         return obj.has_usable_password()
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        avatar = data.get("avatar")
+        request = self.context.get("request")
+        if avatar and request and avatar.startswith("/"):
+            data["avatar"] = request.build_absolute_uri(avatar)
+        return data
+
+    def _delete_old_local_avatar_if_any(self, avatar_url: str) -> None:
+        if not avatar_url:
+            return
+        path = urlparse(avatar_url).path
+        if not path.startswith(settings.MEDIA_URL):
+            return
+        storage_path = path[len(settings.MEDIA_URL):]
+        if storage_path and default_storage.exists(storage_path):
+            default_storage.delete(storage_path)
+
+    def update(self, instance, validated_data):
+        avatar_file = validated_data.pop("avatar_file", None)
+        if avatar_file:
+            old_avatar = instance.avatar or ""
+            self._delete_old_local_avatar_if_any(old_avatar)
+
+            _, ext = os.path.splitext(avatar_file.name or "")
+            safe_ext = ext.lower() if ext else ".jpg"
+            filename = f"avatars/{uuid.uuid4().hex}{safe_ext}"
+            stored_path = default_storage.save(filename, avatar_file)
+            validated_data["avatar"] = f"{settings.MEDIA_URL}{stored_path}"
+
+        return super().update(instance, validated_data)
 
 
 # ---------------------------------------------------------------------------

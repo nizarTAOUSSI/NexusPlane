@@ -12,6 +12,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from google.auth.exceptions import GoogleAuthError
 from rest_framework import status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -88,7 +89,10 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         _cache_user(user)  # publish to Redis for other services
-        return Response(UserProfileSerializer(user).data, status=status.HTTP_201_CREATED)
+        return Response(
+            UserProfileSerializer(user, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +148,7 @@ class LoginView(APIView):
             {
                 "access": access_token,
                 "refresh": refresh_token,
-                "user": UserProfileSerializer(user).data,
+                "user": UserProfileSerializer(user, context={"request": request}).data,
                 "provider": "local" ,
             },
             status=status.HTTP_200_OK,
@@ -243,7 +247,7 @@ class GoogleLoginView(APIView):
                 {
                     "access": access_token,
                     "refresh": refresh_token,
-                    "user": UserProfileSerializer(user).data,
+                    "user": UserProfileSerializer(user, context={"request": request}).data,
                     "provider": "google",
                 },
                 status=status.HTTP_200_OK,
@@ -312,6 +316,7 @@ class UpdateProfileView(APIView):
     """Retrieve or partially update the authenticated user's profile."""
 
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
     @extend_schema(
         summary="Get current user profile",
@@ -320,7 +325,7 @@ class UpdateProfileView(APIView):
     )
     def get(self, request: Request) -> Response:
         return Response(
-            UserProfileSerializer(request.user).data,
+            UserProfileSerializer(request.user, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
 
@@ -335,7 +340,10 @@ class UpdateProfileView(APIView):
     )
     def patch(self, request: Request) -> Response:
         serializer = UserProfileSerializer(
-            request.user, data=request.data, partial=True
+            request.user,
+            data=request.data,
+            partial=True,
+            context={"request": request},
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -434,7 +442,10 @@ class LookupByEmailView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+        return Response(
+            UserProfileSerializer(user, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class LookupByIdView(APIView):
@@ -464,7 +475,10 @@ class LookupByIdView(APIView):
         except (User.DoesNotExist, Exception):
             return Response({"detail": "No user found with that id."},
                             status=status.HTTP_404_NOT_FOUND)
-        return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+        return Response(
+            UserProfileSerializer(user, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
 
 
 class LookupByIdsView(APIView):
@@ -492,5 +506,8 @@ class LookupByIdsView(APIView):
             return Response([], status=status.HTTP_200_OK)
         uid_list = [u.strip() for u in raw.split(",") if u.strip()]
         users = User.objects.filter(id__in=uid_list)
-        return Response(UserProfileSerializer(users, many=True).data, status=status.HTTP_200_OK)
+        return Response(
+            UserProfileSerializer(users, many=True, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
 
