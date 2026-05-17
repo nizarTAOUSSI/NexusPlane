@@ -87,6 +87,38 @@ async function djangoFetch(url, method = 'POST', body, headers = internalHeaders
     }
 }
 
+async function fetchJsonDetailed(url, method = 'POST', body, headers = { 'Content-Type': 'application/json' }) {
+    try {
+        const res = await fetch(url, {
+            method,
+            headers,
+            body: JSON.stringify(body),
+        });
+
+        const raw = await res.text();
+        let parsed = null;
+        try {
+            parsed = raw ? JSON.parse(raw) : null;
+        } catch {
+            parsed = null;
+        }
+
+        return {
+            ok: res.ok,
+            status: res.status,
+            data: parsed,
+            text: raw,
+        };
+    } catch (err) {
+        return {
+            ok: false,
+            status: 0,
+            data: null,
+            text: err.message || 'Network error',
+        };
+    }
+}
+
 async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketName, originalMessage, replyToId }) {
     if (!senderId || !roomId || !messageMentionsNexusAI(originalMessage)) return;
 
@@ -106,7 +138,7 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
         },
     };
 
-    const aiResponse = await djangoFetch(
+    const aiResponse = await fetchJsonDetailed(
         resolveAiUrl(API_AI_COPILOT),
         'POST',
         aiPayload,
@@ -116,10 +148,28 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
         }
     );
 
-    let replyText = aiResponse?.reply ? String(aiResponse.reply).trim() : '';
+    let replyText = aiResponse?.data?.reply ? String(aiResponse.data.reply).trim() : '';
     if (!replyText) {
-        console.warn('[nexus-ai] Copilot returned empty/failed response; sending fallback message');
-        replyText = "Nexus AI is temporarily unavailable right now. Please try again in a moment.";
+        const backendDetail =
+            aiResponse?.data?.detail
+            || aiResponse?.data?.error
+            || aiResponse?.text
+            || 'Unknown error';
+        console.warn(
+            `[nexus-ai] Copilot request failed/empty (status=${aiResponse?.status || 'n/a'}) detail=${String(backendDetail).slice(0, 300)}`
+        );
+
+        if ((aiResponse?.status || 0) >= 500) {
+            replyText = 'Nexus AI provider is currently unavailable (server error). Please try again shortly.';
+        } else if (aiResponse?.status === 401) {
+            replyText = 'Nexus AI authorization failed (missing or invalid identity header).';
+        } else if (aiResponse?.status === 400) {
+            replyText = 'Nexus AI could not process this request. Try a clearer prompt after @nexus-ai.';
+        } else if (aiResponse?.status === 0) {
+            replyText = 'Nexus AI service is unreachable from chat service (network/connection error).';
+        } else {
+            replyText = 'Nexus AI is temporarily unavailable right now. Please try again in a moment.';
+        }
     }
 
     const savedAi = await djangoFetch(
