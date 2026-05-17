@@ -19,6 +19,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "email", "createdAt", "updatedAt", "has_password")
 
     def get_has_password(self, obj) -> bool:
+        if not obj.password:
+            return False
         return obj.has_usable_password()
 
 
@@ -68,6 +70,7 @@ class LoginResponseSerializer(serializers.Serializer):
     access = serializers.CharField()
     refresh = serializers.CharField()
     user = UserProfileSerializer()
+    provider = serializers.CharField()
 
 class GoogleLoginSerializer(serializers.Serializer):
     credential = serializers.CharField(help_text="Google ID token from frontend")
