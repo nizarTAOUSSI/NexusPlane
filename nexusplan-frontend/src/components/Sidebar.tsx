@@ -129,6 +129,12 @@ const OnlineUsersAvatars: React.FC = () => {
 function notificationPreview(n: { type: string; data: Record<string, unknown> }): string {
   const msg = n.data?.message;
   if (typeof msg === 'string') return msg.length > 72 ? `${msg.slice(0, 72)}…` : msg;
+  if (n.type === 'added_to_project') return 'You were added to a project.';
+  if (n.type === 'removed_from_project') return 'You were removed from a project.';
+  if (n.type === 'project_updated') return 'A project you are in was updated.';
+  if (n.type === 'added_to_team') return 'You were added to a team.';
+  if (n.type === 'removed_from_team') return 'You were removed from a team.';
+  if (n.type === 'team_updated') return 'A team you are in was updated.';
   return n.type.replace(/_/g, ' ');
 }
 
@@ -285,6 +291,21 @@ export const TopNavbar: React.FC<{ onMobileMenuToggle?: () => void }> = ({ onMob
                       const dmTypes = new Set(['message', 'dm']);
                       if (dmTypes.has(n.type) && n.from_user?.id) {
                         openNotifFrom(n.from_user.id);
+                      } else if (
+                        (n.type === 'added_to_project'
+                          || n.type === 'removed_from_project'
+                          || n.type === 'project_updated')
+                        && typeof n.data?.project_id === 'string'
+                      ) {
+                        setNotifOpen(false);
+                        navigate(`/projects/${n.data.project_id}`);
+                      } else if (
+                        n.type === 'added_to_team'
+                        || n.type === 'removed_from_team'
+                        || n.type === 'team_updated'
+                      ) {
+                        setNotifOpen(false);
+                        navigate('/teams');
                       } else if (n.type === 'group' && typeof n.data?.roomId === 'string') {
                         setNotifOpen(false);
                         navigate(`/chat/${n.data.roomId}`);

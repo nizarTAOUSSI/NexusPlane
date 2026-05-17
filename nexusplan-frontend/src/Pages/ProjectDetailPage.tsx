@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { taskService } from '../services/taskService';
 import { type Task } from '../types/task';
 import AISummarizeModal from '../components/Tasks/AISummarizeModal';
+import ConfirmModal from '../components/ConfirmModal';
 import { Sparkles, ArrowLeft, Users, Calendar, Archive, Trash2,
   Clock, Crown, Eye, Edit3, RefreshCw, FolderOpen,
   UserPlus, X, Send, CheckCircle, AlertCircle, Mail,
@@ -295,6 +296,104 @@ const InviteModal: React.FC<InviteModalProps> = ({
   );
 };
 
+const EditProjectModal: React.FC<{
+  project: Project;
+  onClose: () => void;
+  onSaved: (project: Project) => void;
+}> = ({ project, onClose, onSaved }) => {
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Project name is required.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const updated = await projectsApi.update(project.id, {
+        name: name.trim(),
+        description: description.trim(),
+      });
+      onSaved(updated);
+    } catch (err: unknown) {
+      setError(
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+          ?? 'Could not update project.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="invite-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <motion.div
+        className="invite-modal"
+        initial={{ opacity: 0, scale: 0.94, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.94, y: 16 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+      >
+        <div className="invite-modal-header">
+          <div className="invite-modal-icon">
+            <Edit3 size={20} />
+          </div>
+          <div className="invite-modal-title-wrap">
+            <h3>Edit Project</h3>
+            <p>Update name and description</p>
+          </div>
+          <button className="invite-close" onClick={onClose} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="invite-form">
+          <div className="invite-field">
+            <label>Project name</label>
+            <input
+              type="text"
+              className="invite-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+
+          <div className="invite-field">
+            <label>Description</label>
+            <textarea
+              className="invite-input"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={4}
+            />
+          </div>
+
+          {error && (
+            <div className="invite-msg invite-msg--error">
+              <AlertCircle size={14} /> <span>{error}</span>
+            </div>
+          )}
+
+          <div className="invite-actions" style={{ justifyContent: 'flex-end' }}>
+            <button type="button" className="invite-btn invite-btn--ghost" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="invite-btn invite-btn--primary" disabled={loading}>
+              {loading ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
 
 interface AddTeamModalProps {
   projectId: string;
@@ -513,9 +612,18 @@ const ProjectDetailPage: React.FC = () => {
   const [deleting, setDeleting] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [showAddTeam, setShowAddTeam] = useState(false);
+  const [showEditProject, setShowEditProject] = useState(false);
   const [kicking, setKicking] = useState<string | null>(null);
   const [quitting, setQuitting] = useState(false);
   const { user } = useAuth();
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    danger?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   const currentUserRole = members.find(m => m.userId === user?.id)?.role;
   const isProjectOwner = !!project && project.ownerId === user?.id;
@@ -556,52 +664,84 @@ const ProjectDetailPage: React.FC = () => {
       const updated = await projectsApi.archive(project.id);
       setProject(updated);
     } catch {
-      alert('Could not archive project.');
+      setErrorModal('Could not archive project.');
     } finally {
       setArchiving(false);
     }
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!project || deleting) return;
-    if (!confirm(`Delete "${project.name}"? This cannot be undone.`)) return;
-    setDeleting(true);
-    try {
-      await projectsApi.delete(project.id);
-      navigate('/projects');
-    } catch {
-      alert('Could not delete project.');
-      setDeleting(false);
-    }
+    const proj = project;
+    setConfirmModal({
+      title: 'Delete Project',
+      message: `Delete "${proj.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setDeleting(true);
+        try {
+          await projectsApi.delete(proj.id);
+          navigate('/projects');
+        } catch {
+          setErrorModal('Could not delete project.');
+          setDeleting(false);
+        }
+      },
+    });
   };
 
-  const handleKick = async (membership: Membership) => {
+  const handleKick = (membership: Membership) => {
     if (!project) return;
-    if (!confirm(`Remove ${membership.username || membership.email || 'this member'} from the project?`)) return;
-    setKicking(membership.userId);
-    try {
-      await projectsApi.kickMember(project.id, membership.userId);
-      setMembers(prev => prev.filter(m => m.userId !== membership.userId));
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Could not remove member.';
-      alert(msg);
-    } finally {
-      setKicking(null);
-    }
+    const proj = project;
+    setConfirmModal({
+      title: 'Remove Member',
+      message: `Remove ${membership.username || membership.email || 'this member'} from the project?`,
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setKicking(membership.userId);
+        try {
+          await projectsApi.kickMember(proj.id, membership.userId);
+          setMembers(prev => prev.filter(m => m.userId !== membership.userId));
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Could not remove member.';
+          setErrorModal(msg);
+        } finally {
+          setKicking(null);
+        }
+      },
+    });
   };
 
-  const handleQuit = async () => {
+  const handleQuit = () => {
     if (!project || quitting) return;
-    if (!confirm('Leave this project?')) return;
-    setQuitting(true);
-    try {
-      await projectsApi.quitProject(project.id);
-      navigate('/projects');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Could not leave project.';
-      alert(msg);
-      setQuitting(false);
-    }
+    const proj = project;
+    setConfirmModal({
+      title: 'Leave Project',
+      message: 'Leave this project?',
+      confirmLabel: 'Leave',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setQuitting(true);
+        try {
+          await projectsApi.quitProject(proj.id);
+          navigate('/projects');
+        } catch (err: unknown) {
+          const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Could not leave project.';
+          setErrorModal(msg);
+          setQuitting(false);
+        }
+      },
+    });
+  };
+
+  const handleProjectSaved = (updated: Project) => {
+    setShowEditProject(false);
+    setProject(updated);
   };
 
   if (loading) return (
@@ -661,6 +801,15 @@ const ProjectDetailPage: React.FC = () => {
         </div>
 
         <div className="pd-hero-actions">
+          {project.ownerId === user?.id && (
+            <button
+              className="pd-action-btn"
+              onClick={() => setShowEditProject(true)}
+            >
+              <Edit3 size={15} />
+              Edit
+            </button>
+          )}
           {isActive && (
             <button
               className="pd-action-btn"
@@ -835,6 +984,13 @@ const ProjectDetailPage: React.FC = () => {
       <p className="pd-id-hint">Project ID: <code>{project.id}</code></p>
 
       <AnimatePresence>
+        {showEditProject && project && (
+          <EditProjectModal
+            project={project}
+            onClose={() => setShowEditProject(false)}
+            onSaved={handleProjectSaved}
+          />
+        )}
         {showInvite && project && (
           <InviteModal
             projectId={project.id}
@@ -858,6 +1014,23 @@ const ProjectDetailPage: React.FC = () => {
             tasks={tasks}
             userId={user.id}
             onClose={() => setShowSummarize(false)}
+          />
+        )}
+        {confirmModal && (
+          <ConfirmModal
+            title={confirmModal.title}
+            message={confirmModal.message}
+            confirmLabel={confirmModal.confirmLabel}
+            danger={confirmModal.danger}
+            onConfirm={confirmModal.onConfirm}
+            onClose={() => setConfirmModal(null)}
+          />
+        )}
+        {errorModal && (
+          <ConfirmModal
+            title="Error"
+            message={errorModal}
+            onClose={() => setErrorModal(null)}
           />
         )}
       </AnimatePresence>

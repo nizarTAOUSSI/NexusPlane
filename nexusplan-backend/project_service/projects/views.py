@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 import threading
@@ -45,11 +46,43 @@ def _redis():
     )
 
 
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
+
+
 def _send_async(fn, **kwargs) -> None:
     """Fire-and-forget: run *fn(**kwargs)* in a daemon thread so the HTTP
     response is returned immediately without waiting for the SMTP round-trip."""
     t = threading.Thread(target=fn, kwargs=kwargs, daemon=True)
     t.start()
+
+
+def _send_notification(
+    *,
+    user_id: str,
+    from_user_id: str | None = None,
+    notif_type: str,
+    data: dict,
+) -> None:
+    """Fire-and-forget: store a notification for *user_id* via auth_service."""
+    def _do():
+        try:
+            auth_url = getattr(django_settings, "AUTH_SERVICE_URL", "").rstrip("/")
+            if not auth_url:
+                return
+            http_requests.post(
+                f"{auth_url}/api/messages/notifications/store/",
+                json={
+                    "user_id": user_id,
+                    "from_user_id": from_user_id,
+                    "type": notif_type,
+                    "data": data,
+                },
+                headers={"X-Internal-Key": INTERNAL_API_KEY},
+                timeout=5,
+            )
+        except Exception as exc:
+            logger.warning("Failed to send notification %s to %s: %s", notif_type, user_id, exc)
+    threading.Thread(target=_do, daemon=True).start()
 
 
 def _get_user_by_email(email: str) -> dict | None:
@@ -796,6 +829,24 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
         write_serializer.is_valid(raise_exception=True)
         project = write_serializer.save()
+        # Notify all members that the project was updated
+        requester_id = request.headers.get("X-User-Id")
+        member_ids = list(
+            Membership.objects.filter(projectId=instance).values_list("userId", flat=True)
+        )
+        member_ids.append(str(instance.ownerId))
+        for uid in set(str(u) for u in member_ids):
+            if uid != requester_id:
+                _send_notification(
+                    user_id=uid,
+                    from_user_id=requester_id,
+                    notif_type="project_updated",
+                    data={
+                        "message": f'"{project.name}" has been updated.',
+                        "project_id": str(project.id),
+                        "project_name": project.name,
+                    },
+                )
         return Response(ProjectSerializer(project).data)
 
     def destroy(self, request: Request, *args, **kwargs) -> Response:
@@ -996,6 +1047,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
                 frontend_url=frontend_url,
             )
 
+            _send_notification(
+                user_id=user_id,
+                from_user_id=requester_id,
+                notif_type="added_to_project",
+                data={
+                    "message": f'You\'ve been added to "{project.name}" as {role.title()}.',
+                    "project_id": str(project.id),
+                    "project_name": project.name,
+                    "role": role,
+                },
+            )
+
             return Response(
                 MembershipSerializer(membership).data,
                 status=status.HTTP_201_CREATED,
@@ -1142,6 +1205,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
             )
 
         membership.delete()
+        _send_notification(
+            user_id=target_user_id,
+            from_user_id=requester_id,
+            notif_type="removed_from_project",
+            data={
+                "message": f'You have been removed from "{project.name}".',
+                "project_id": str(project.id),
+                "project_name": project.name,
+            },
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------
@@ -1466,6 +1539,23 @@ class TeamViewSet(viewsets.ModelViewSet):
         write_serializer = TeamCreateSerializer(instance, data=request.data, partial=partial)
         write_serializer.is_valid(raise_exception=True)
         team = write_serializer.save()
+        # Notify all members that the team was updated
+        member_ids = list(
+            TeamMembership.objects.filter(team=instance).values_list("userId", flat=True)
+        )
+        member_ids.append(str(instance.ownerId))
+        for uid in set(str(u) for u in member_ids):
+            if uid != requester_id:
+                _send_notification(
+                    user_id=uid,
+                    from_user_id=requester_id,
+                    notif_type="team_updated",
+                    data={
+                        "message": f'"{team.name}" team has been updated.',
+                        "team_id": str(team.id),
+                        "team_name": team.name,
+                    },
+                )
         return Response(TeamSerializer(team).data)
 
     def destroy(self, request: Request, *args, **kwargs) -> Response:
@@ -1594,6 +1684,17 @@ class TeamViewSet(viewsets.ModelViewSet):
                 role=role,
                 team_url=f"{frontend_url}/teams",
             )
+            _send_notification(
+                user_id=user_id,
+                from_user_id=requester_id,
+                notif_type="added_to_team",
+                data={
+                    "message": f'You\'ve been added to the "{team.name}" team as {role.title()}.',
+                    "team_id": str(team.id),
+                    "team_name": team.name,
+                    "role": role,
+                },
+            )
             return Response(
                 {
                     "id":       str(membership.id),
@@ -1707,6 +1808,16 @@ class TeamViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
         membership.delete()
+        _send_notification(
+            user_id=target_user_id,
+            from_user_id=requester_id,
+            notif_type="removed_from_team",
+            data={
+                "message": f'You have been removed from the "{team.name}" team.',
+                "team_id": str(team.id),
+                "team_name": team.name,
+            },
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     # ------------------------------------------------------------------
@@ -1808,6 +1919,17 @@ class TeamViewSet(viewsets.ModelViewSet):
                     project_url=f"{frontend_url}/projects/{project.id}",
                     frontend_url=frontend_url,
                 )
+            _send_notification(
+                user_id=uid,
+                from_user_id=requester_id,
+                notif_type="added_to_project",
+                data={
+                    "message": f'You\'ve been added to "{project.name}" as {role.title()}.',
+                    "project_id": str(project.id),
+                    "project_name": project.name,
+                    "role": role,
+                },
+            )
 
         return Response(
             {

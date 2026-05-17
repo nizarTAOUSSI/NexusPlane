@@ -1229,6 +1229,25 @@
 
 .projects-btn-ghost:hover { background: var(--surface-hover); }
 
+.projects-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: #EF4444;
+  color: #fff;
+  border: none;
+  border-radius: var(--r-md);
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.projects-btn-danger:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+.projects-btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
+
 /* Create project modal */
 .projects-modal-overlay {
   position: fixed;

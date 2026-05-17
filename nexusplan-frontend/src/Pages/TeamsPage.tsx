@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   Plus, Search, Users, Send, Crown, UserPlus,
-  CheckCircle, AlertCircle, Mail, Loader2, Shield,
+  CheckCircle, AlertCircle, Mail, Loader2, Shield, Edit3,
   Trash2, LogOut, ChevronDown, ChevronsUpDown,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { teamsApi, type Team, type TeamMember } from '../teamsApi';
 import { useAuth } from '../context/AuthContext';
+import ConfirmModal from '../components/ConfirmModal';
 
 
 const fmtDate = (iso: string) =>
@@ -144,6 +145,65 @@ const InviteModal: React.FC<{ team: Team; onClose: () => void; onInvited: () => 
             </motion.form>
           )}
         </AnimatePresence>
+      </motion.div>
+    </motion.div>
+  );
+};
+
+const EditTeamModal: React.FC<{
+  team: Team;
+  onClose: () => void;
+  onSaved: (team: Team) => void;
+}> = ({ team, onClose, onSaved }) => {
+  const [name, setName] = useState(team.name);
+  const [desc, setDesc] = useState(team.description || '');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Team name is required.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      const updated = await teamsApi.update(team.id, {
+        name: name.trim(),
+        description: desc.trim(),
+      });
+      onSaved(updated);
+    } catch (err: unknown) {
+      setError(
+        (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+          ?? 'Could not update team.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div className="projects-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose}>
+      <motion.div className="projects-modal" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.97 }} transition={{ duration: 0.22 }} onClick={e => e.stopPropagation()}>
+        <h2 className="projects-modal-title">Edit Team</h2>
+        <p className="projects-modal-sub">Update team information.</p>
+        <form onSubmit={handleSubmit} className="projects-modal-form">
+          <div className="projects-field">
+            <label className="projects-label">Team name *</label>
+            <input className="projects-input" type="text" value={name} onChange={e => setName(e.target.value)} autoFocus />
+          </div>
+          <div className="projects-field">
+            <label className="projects-label">Description</label>
+            <textarea className="projects-input projects-textarea" value={desc} onChange={e => setDesc(e.target.value)} rows={3} />
+          </div>
+          {error && <p className="projects-error">{error}</p>}
+          <div className="projects-modal-actions">
+            <button type="button" className="projects-btn-ghost" onClick={onClose}>Cancel</button>
+            <button type="submit" className="projects-btn-primary" disabled={loading}>{loading ? 'Saving…' : 'Save Changes'}</button>
+          </div>
+        </form>
       </motion.div>
     </motion.div>
   );
@@ -304,7 +364,16 @@ const TeamsPage: React.FC = () => {
   const [kicking, setKicking] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
   const [teamDropOpen, setTeamDropOpen] = useState(false);
+  const [confirmModal, setConfirmModal] = useState<{
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    danger?: boolean;
+    onConfirm: () => void;
+  } | null>(null);
+  const [errorModal, setErrorModal] = useState<string | null>(null);
 
   const isOwner = !!activeTeam && !!currentUserId && activeTeam.ownerId === currentUserId;
   const isAdmin = !isOwner && members.some(m => m.userId === currentUserId && m.role === 'ADMIN');
@@ -350,40 +419,75 @@ const TeamsPage: React.FC = () => {
     } catch {}
   };
 
-  const handleDelete = async () => {
-    if (!activeTeam || !confirm(`Delete "${activeTeam.name}"? This cannot be undone.`)) return;
-    try {
-      await teamsApi.delete(activeTeam.id);
-      const remaining = teams.filter(t => t.id !== activeTeam.id);
-      setTeams(remaining);
-      setActiveTeam(remaining[0] ?? null);
-      setMembers([]);
-    } catch { alert('Could not delete team.'); }
+  const handleDelete = () => {
+    if (!activeTeam) return;
+    const team = activeTeam;
+    setConfirmModal({
+      title: 'Delete Team',
+      message: `Delete "${team.name}"? This cannot be undone.`,
+      confirmLabel: 'Delete',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await teamsApi.delete(team.id);
+          const remaining = teams.filter(t => t.id !== team.id);
+          setTeams(remaining);
+          setActiveTeam(remaining[0] ?? null);
+          setMembers([]);
+        } catch { setErrorModal('Could not delete team.'); }
+      },
+    });
   };
 
-  const handleQuit = async () => {
-    if (!activeTeam || !confirm(`Leave "${activeTeam.name}"?`)) return;
-    try {
-      await teamsApi.quit(activeTeam.id);
-      const remaining = teams.filter(t => t.id !== activeTeam.id);
-      setTeams(remaining);
-      setActiveTeam(remaining[0] ?? null);
-      setMembers([]);
-    } catch { alert('Could not leave team.'); }
+  const handleUpdated = (updated: Team) => {
+    setShowEdit(false);
+    setActiveTeam(updated);
+    setTeams(prev => prev.map(t => (t.id === updated.id ? updated : t)));
   };
 
-  const handleKick = async (m: TeamMember) => {
+  const handleQuit = () => {
+    if (!activeTeam) return;
+    const team = activeTeam;
+    setConfirmModal({
+      title: 'Leave Team',
+      message: `Leave "${team.name}"?`,
+      confirmLabel: 'Leave',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await teamsApi.quit(team.id);
+          const remaining = teams.filter(t => t.id !== team.id);
+          setTeams(remaining);
+          setActiveTeam(remaining[0] ?? null);
+          setMembers([]);
+        } catch { setErrorModal('Could not leave team.'); }
+      },
+    });
+  };
+
+  const handleKick = (m: TeamMember) => {
     if (!activeTeam) return;
     const name = m.username || m.email || m.userId.slice(0, 8);
-    if (!confirm(`Remove ${name} from the team?`)) return;
-    setKicking(m.userId);
-    try {
-      await teamsApi.kick(activeTeam.id, m.userId);
-      setMembers(prev => prev.filter(x => x.userId !== m.userId));
-      setActiveTeam(t => t ? { ...t, memberCount: t.memberCount - 1 } : t);
-      setTeams(prev => prev.map(t => t.id === activeTeam.id ? { ...t, memberCount: t.memberCount - 1 } : t));
-    } catch { alert('Could not remove member.'); }
-    finally { setKicking(null); }
+    const team = activeTeam;
+    setConfirmModal({
+      title: 'Remove Member',
+      message: `Remove ${name} from the team?`,
+      confirmLabel: 'Remove',
+      danger: true,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        setKicking(m.userId);
+        try {
+          await teamsApi.kick(team.id, m.userId);
+          setMembers(prev => prev.filter(x => x.userId !== m.userId));
+          setActiveTeam(t => t ? { ...t, memberCount: t.memberCount - 1 } : t);
+          setTeams(prev => prev.map(t => t.id === team.id ? { ...t, memberCount: t.memberCount - 1 } : t));
+        } catch { setErrorModal('Could not remove member.'); }
+        finally { setKicking(null); }
+      },
+    });
   };
 
   const color = activeTeam ? teamColor(activeTeam.id) : '#6366F1';
@@ -452,6 +556,11 @@ const TeamsPage: React.FC = () => {
             </button>
           )}
           {activeTeam && isOwner && (
+            <button className="projects-btn-ghost" onClick={() => setShowEdit(true)} title="Edit team">
+              <Edit3 size={14} />
+            </button>
+          )}
+          {activeTeam && isOwner && (
             <button className="projects-btn-ghost tm-danger-btn" onClick={handleDelete} title="Delete team">
               <Trash2 size={14} />
             </button>
@@ -496,6 +605,30 @@ const TeamsPage: React.FC = () => {
             team={activeTeam}
             onClose={() => setShowInvite(false)}
             onInvited={() => { fetchMembers(activeTeam); fetchTeams(); }}
+          />
+        )}
+        {showEdit && activeTeam && (
+          <EditTeamModal
+            team={activeTeam}
+            onClose={() => setShowEdit(false)}
+            onSaved={handleUpdated}
+          />
+        )}
+        {confirmModal && (
+          <ConfirmModal
+            title={confirmModal.title}
+            message={confirmModal.message}
+            confirmLabel={confirmModal.confirmLabel}
+            danger={confirmModal.danger}
+            onConfirm={confirmModal.onConfirm}
+            onClose={() => setConfirmModal(null)}
+          />
+        )}
+        {errorModal && (
+          <ConfirmModal
+            title="Error"
+            message={errorModal}
+            onClose={() => setErrorModal(null)}
           />
         )}
       </AnimatePresence>
