@@ -91,7 +91,10 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
     if (!senderId || !roomId || !messageMentionsNexusAI(originalMessage)) return;
 
     const aiUserId = await ensureNexusAiUserId();
-    if (!aiUserId || String(senderId) === String(aiUserId)) return;
+    if (!aiUserId || String(senderId) === String(aiUserId)) {
+        console.warn('[nexus-ai] Missing bot user id or sender is bot, skipping response');
+        return;
+    }
 
     const prompt = cleanNexusAiMention(originalMessage) || 'Please help with this team chat request.';
     const aiPayload = {
@@ -113,8 +116,11 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
         }
     );
 
-    const replyText = aiResponse?.reply ? String(aiResponse.reply).trim() : '';
-    if (!replyText) return;
+    let replyText = aiResponse?.reply ? String(aiResponse.reply).trim() : '';
+    if (!replyText) {
+        console.warn('[nexus-ai] Copilot returned empty/failed response; sending fallback message');
+        replyText = "Nexus AI is temporarily unavailable right now. Please try again in a moment.";
+    }
 
     const savedAi = await djangoFetch(
         resolveUrl(API_STORE_GROUP_MSG),
@@ -128,7 +134,10 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
         }
     );
 
-    if (!savedAi || savedAi.status !== 'ok') return;
+    if (!savedAi || savedAi.status !== 'ok') {
+        console.warn('[nexus-ai] Failed to persist AI reply in group messages');
+        return;
+    }
 
     io.to(roomSocketName).emit('receiveMessage', {
         type: 'group',
