@@ -19,6 +19,8 @@ const DJANGO_URL        = process.env.DJANGO_URL        || 'http://localhost:800
 const COPILOT_ENDPOINT_URL = process.env.COPILOT_ENDPOINT_URL || 'http://ai_service:8000/api/ai/copilot/';
 const COPILOT_ENDPOINT_FALLBACK_URL = process.env.COPILOT_ENDPOINT_FALLBACK_URL || 'https://nexusplan.duckdns.org/api/ai/copilot/';
 const COPILOT_INTERNAL_HOST_HEADER = process.env.COPILOT_INTERNAL_HOST_HEADER || 'ai_service';
+const NEXUS_AI_NAME = process.env.NEXUS_AI_NAME || 'Nexus AI';
+const NEXUS_AI_AVATAR = process.env.NEXUS_AI_AVATAR || 'https://nexusplan.duckdns.org/logoNexus.png';
 const INTERNAL_API_KEY  = process.env.INTERNAL_API_KEY  || '';
 const PORT              = process.env.PORT              || 5000;
 
@@ -34,6 +36,8 @@ console.log('   DJANGO_URL :', DJANGO_URL);
 console.log('   COPILOT_ENDPOINT_URL :', COPILOT_ENDPOINT_URL);
 console.log('   COPILOT_ENDPOINT_FALLBACK_URL :', COPILOT_ENDPOINT_FALLBACK_URL);
 console.log('   COPILOT_INTERNAL_HOST_HEADER :', COPILOT_INTERNAL_HOST_HEADER);
+console.log('   NEXUS_AI_NAME :', NEXUS_AI_NAME);
+console.log('   NEXUS_AI_AVATAR :', NEXUS_AI_AVATAR);
 console.log('   INTERNAL_API_KEY :', INTERNAL_API_KEY ? '✅ set' : '⚠️  missing');
 
 
@@ -159,96 +163,119 @@ async function maybeSendNexusAiReply({ senderId, roomId, roomType, roomSocketNam
 
     let aiResponse = null;
     let aiEndpointUsed = '';
+    let typingSent = false;
 
-    for (const endpoint of endpointCandidates) {
-        const endpointHeaders = {
-            'Content-Type': 'application/json',
-            'X-User-Id': String(senderId),
-        };
-
-        if (endpoint.includes('ai_service')) {
-            endpointHeaders.Host = COPILOT_INTERNAL_HOST_HEADER;
-        }
-
-        const attempt = await fetchJsonDetailed(
-            endpoint,
-            'POST',
-            aiPayload,
-            endpointHeaders
-        );
-
-        if (attempt.ok && attempt?.data?.reply) {
-            aiResponse = attempt;
-            aiEndpointUsed = endpoint;
-            break;
-        }
-
-        console.warn(
-            `[nexus-ai] Copilot endpoint attempt failed endpoint=${endpoint} status=${attempt.status} detail=${String(attempt?.data?.detail || attempt?.text || 'Unknown').slice(0, 200)}`
-        );
-
-        // Keep the last non-network failure for better user-facing reason text.
-        if (!aiResponse || aiResponse.status === 0) {
-            aiResponse = attempt;
-        }
-    }
-
-    if (aiEndpointUsed) {
-        console.log(`[nexus-ai] Copilot reply generated via endpoint=${aiEndpointUsed}`);
-    }
-
-    let replyText = aiResponse?.data?.reply ? String(aiResponse.data.reply).trim() : '';
-    if (!replyText) {
-        const backendDetail =
-            aiResponse?.data?.detail
-            || aiResponse?.data?.error
-            || aiResponse?.text
-            || 'Unknown error';
-        console.warn(
-            `[nexus-ai] Copilot request failed/empty (status=${aiResponse?.status || 'n/a'}) detail=${String(backendDetail).slice(0, 300)}`
-        );
-
-        if ((aiResponse?.status || 0) >= 500) {
-            replyText = 'Nexus AI provider is currently unavailable (server error). Please try again shortly.';
-        } else if (aiResponse?.status === 401) {
-            replyText = 'Nexus AI authorization failed (missing or invalid identity header).';
-        } else if (aiResponse?.status === 400) {
-            replyText = 'Nexus AI could not process this request. Try a clearer prompt after @nexus-ai.';
-        } else if (aiResponse?.status === 0) {
-            replyText = 'Nexus AI service is unreachable from chat service (network/connection error).';
-        } else {
-            replyText = 'Nexus AI is temporarily unavailable right now. Please try again in a moment.';
-        }
-    }
-
-    const savedAi = await djangoFetch(
-        resolveUrl(API_STORE_GROUP_MSG),
-        'POST',
-        {
-            sender_id: aiUserId,
-            room_id: roomId,
-            room_type: roomType || 'group',
-            message: replyText,
-            reply_to_id: replyToId || null,
-        }
-    );
-
-    if (!savedAi || savedAi.status !== 'ok') {
-        console.warn('[nexus-ai] Failed to persist AI reply in group messages');
-        return;
-    }
-
-    io.to(roomSocketName).emit('receiveMessage', {
-        type: 'group',
-        roomId,
-        roomType: roomType || 'group',
-        senderId: aiUserId,
-        senderName: savedAi.senderName || 'Nexus AI',
-        message: replyText,
-        timestamp: new Date().toISOString(),
-        id: savedAi.id,
-        replyTo: savedAi.replyTo || undefined,
+    io.to(roomSocketName).emit('userTyping', {
+        room: roomSocketName,
+        userId: aiUserId,
+        isTyping: true,
+        displayName: NEXUS_AI_NAME,
+        avatar: NEXUS_AI_AVATAR,
+        isBot: true,
     });
+    typingSent = true;
+
+    try {
+        for (const endpoint of endpointCandidates) {
+            const endpointHeaders = {
+                'Content-Type': 'application/json',
+                'X-User-Id': String(senderId),
+            };
+
+            if (endpoint.includes('ai_service')) {
+                endpointHeaders.Host = COPILOT_INTERNAL_HOST_HEADER;
+            }
+
+            const attempt = await fetchJsonDetailed(
+                endpoint,
+                'POST',
+                aiPayload,
+                endpointHeaders
+            );
+
+            if (attempt.ok && attempt?.data?.reply) {
+                aiResponse = attempt;
+                aiEndpointUsed = endpoint;
+                break;
+            }
+
+            console.warn(
+                `[nexus-ai] Copilot endpoint attempt failed endpoint=${endpoint} status=${attempt.status} detail=${String(attempt?.data?.detail || attempt?.text || 'Unknown').slice(0, 200)}`
+            );
+
+            if (!aiResponse || aiResponse.status === 0) {
+                aiResponse = attempt;
+            }
+        }
+
+        if (aiEndpointUsed) {
+            console.log(`[nexus-ai] Copilot reply generated via endpoint=${aiEndpointUsed}`);
+        }
+
+        let replyText = aiResponse?.data?.reply ? String(aiResponse.data.reply).trim() : '';
+        if (!replyText) {
+            const backendDetail =
+                aiResponse?.data?.detail
+                || aiResponse?.data?.error
+                || aiResponse?.text
+                || 'Unknown error';
+            console.warn(
+                `[nexus-ai] Copilot request failed/empty (status=${aiResponse?.status || 'n/a'}) detail=${String(backendDetail).slice(0, 300)}`
+            );
+
+            if ((aiResponse?.status || 0) >= 500) {
+                replyText = 'Nexus AI provider is currently unavailable (server error). Please try again shortly.';
+            } else if (aiResponse?.status === 401) {
+                replyText = 'Nexus AI authorization failed (missing or invalid identity header).';
+            } else if (aiResponse?.status === 400) {
+                replyText = 'Nexus AI could not process this request. Try a clearer prompt after @nexus-ai.';
+            } else if (aiResponse?.status === 0) {
+                replyText = 'Nexus AI service is unreachable from chat service (network/connection error).';
+            } else {
+                replyText = 'Nexus AI is temporarily unavailable right now. Please try again in a moment.';
+            }
+        }
+
+        const savedAi = await djangoFetch(
+            resolveUrl(API_STORE_GROUP_MSG),
+            'POST',
+            {
+                sender_id: aiUserId,
+                room_id: roomId,
+                room_type: roomType || 'group',
+                message: replyText,
+                reply_to_id: replyToId || null,
+            }
+        );
+
+        if (!savedAi || savedAi.status !== 'ok') {
+            console.warn('[nexus-ai] Failed to persist AI reply in group messages');
+            return;
+        }
+
+        io.to(roomSocketName).emit('receiveMessage', {
+            type: 'group',
+            roomId,
+            roomType: roomType || 'group',
+            senderId: aiUserId,
+            senderName: savedAi.senderName || NEXUS_AI_NAME,
+            message: replyText,
+            timestamp: new Date().toISOString(),
+            id: savedAi.id,
+            replyTo: savedAi.replyTo || undefined,
+        });
+    } finally {
+        if (typingSent) {
+            io.to(roomSocketName).emit('userTyping', {
+                room: roomSocketName,
+                userId: aiUserId,
+                isTyping: false,
+                displayName: NEXUS_AI_NAME,
+                avatar: NEXUS_AI_AVATAR,
+                isBot: true,
+            });
+        }
+    }
 }
 
 const usersOnline = {};

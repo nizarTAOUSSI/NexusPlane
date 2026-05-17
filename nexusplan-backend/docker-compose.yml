@@ -40,6 +40,8 @@ services:
       - COPILOT_ENDPOINT_URL=http://ai_service:8000/api/ai/copilot/
       - COPILOT_ENDPOINT_FALLBACK_URL=https://nexusplan.duckdns.org/api/ai/copilot/
       - COPILOT_INTERNAL_HOST_HEADER=ai_service
+      - NEXUS_AI_NAME=Nexus AI
+      - NEXUS_AI_AVATAR=https://nexusplan.duckdns.org/logoNexus.png
       - INTERNAL_API_KEY=${INTERNAL_API_KEY}
     depends_on:
       - auth_service

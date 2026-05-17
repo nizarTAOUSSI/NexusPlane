@@ -10,7 +10,9 @@ from .models import User, DirectMessage, GroupMessage, Notification
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "").strip()
 NEXUS_AI_EMAIL = os.environ.get("NEXUS_AI_EMAIL", "nexus.ai@bot.local").strip().lower()
 NEXUS_AI_USERNAME = os.environ.get("NEXUS_AI_USERNAME", "Nexus AI").strip() or "Nexus AI"
-NEXUS_AI_AVATAR = os.environ.get("NEXUS_AI_AVATAR", "").strip() or None
+NEXUS_AI_AVATAR = os.environ.get(
+    "NEXUS_AI_AVATAR", "https://nexusplan.duckdns.org/logoNexus.png"
+).strip() or None
 
 
 def _group_reply_preview(m: GroupMessage | None) -> dict | None:

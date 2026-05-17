@@ -161,13 +161,15 @@ interface FoundUser {
   avatar: string | null;
 }
 
+const NEXUS_AI_AVATAR_URL = '/logoNexus.png';
+
 const NEXUS_AI_MENTION_MEMBER: TeamMember = {
   id: 'nexus-ai',
   teamId: 'nexus-ai',
   userId: 'nexus-ai',
   username: 'Nexus AI',
   email: 'nexus.ai@bot.local',
-  avatar: null,
+  avatar: NEXUS_AI_AVATAR_URL,
   role: 'MEMBER',
   joinedAt: '',
 };
@@ -249,7 +251,7 @@ const ChatPage: React.FC = () => {
   const [messages, setMessages]     = useState<Message[]>([]);
   const [input, setInput]           = useState('');
   const [search, setSearch]         = useState('');
-  const [typing, setTyping]         = useState<string | null>(null);
+  const [typing, setTyping]         = useState<{ userId: string; displayName?: string; avatar?: string; isBot?: boolean } | null>(null);
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -333,7 +335,16 @@ const ChatPage: React.FC = () => {
 
     const onTyping = (data: any) => {
       if (data.userId !== user?.id) {
-        setTyping(data.isTyping ? data.userId : null);
+        setTyping(
+          data.isTyping
+            ? {
+                userId: data.userId,
+                displayName: data.displayName,
+                avatar: data.avatar,
+                isBot: data.isBot,
+              }
+            : null
+        );
       }
     };
 
@@ -765,6 +776,9 @@ const ChatPage: React.FC = () => {
             } else if (activeRoom?.type === 'group') {
               senderAvatar = (roomMembers[activeRoom.id] ?? []).find(m => m.userId === msg.senderId)?.avatar ?? null;
             }
+            if (!senderAvatar && (msg.senderName || '').toLowerCase() === 'nexus ai') {
+              senderAvatar = NEXUS_AI_AVATAR_URL;
+            }
 
             return (
               <React.Fragment key={msg.id}>
@@ -830,16 +844,16 @@ const ChatPage: React.FC = () => {
 
           {typing && (() => {
             const typingMember =
-              (roomMembers[activeRoom.id] ?? []).find(m => m.userId === typing) ??
-              (rooms.find(r => r.type === 'dm' && r.id === typing) as any);
-            const typingName = typingMember?.username || typingMember?.name || typingMember?.email || typing;
-            const typingAvatar = typingMember?.avatar ?? null;
+              (roomMembers[activeRoom.id] ?? []).find(m => m.userId === typing.userId) ??
+              (rooms.find(r => r.type === 'dm' && r.id === typing.userId) as any);
+            const typingName = typing.displayName || typingMember?.username || typingMember?.name || typingMember?.email || typing.userId;
+            const typingAvatar = typing.avatar || typingMember?.avatar || (typing.isBot ? NEXUS_AI_AVATAR_URL : null);
             return (
               <div className="chat-msg-row">
                 <div className="chat-msg-avatar">
                   {typingAvatar
                     ? <img src={typingAvatar} alt={typingName} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                    : <AvatarChip name={typingName} size={32} color={colorFor(typing)} />
+                    : <AvatarChip name={typingName} size={32} color={colorFor(typing.userId)} />
                   }
                 </div>
                 <div className="chat-bubble chat-bubble--typing">
