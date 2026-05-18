@@ -17,7 +17,7 @@ const AdminDashboardPage = () => {
       try {
         const usersRes = await api.get('/auth/admin/users/');
         setUsers(usersRes.data);
-        const projRes = await api.get('/projects/admin/all/');
+        const projRes = await api.get('/auth/admin/projects-with-members/');
         setProjects(projRes.data);
       } catch (e) {
         console.error(e);
