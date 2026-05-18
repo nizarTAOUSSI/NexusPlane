@@ -1,3 +1,4 @@
+from rest_framework.views import APIView
 import json
 import logging
 import threading
@@ -1716,3 +1717,13 @@ class TeamViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
+
+class AdminProjectListView(APIView):
+    permission_classes = [AllowAny] # Nginx protects this, but we'll check X-Is-Superuser
+
+    def get(self, request: Request) -> Response:
+        is_superuser = request.headers.get("X-Is-Superuser") == "true"
+        if not is_superuser:
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        projects = Project.objects.all().order_by("-createdAt")
+        return Response(ProjectSerializer(projects, many=True).data)
