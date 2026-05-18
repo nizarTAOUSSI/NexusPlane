@@ -15,8 +15,6 @@ from .views import (
     RegisterView,
     UpdateProfileView,
     GoogleLoginView,
-    AdminListUsersView,
-    AdminBanUserView,
 )
 
 urlpatterns = [

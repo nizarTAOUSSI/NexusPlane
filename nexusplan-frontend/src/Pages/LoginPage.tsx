@@ -48,13 +48,15 @@ const LoginPage = () => {
         e.preventDefault();
         setIsLoading(true);
         try {
-            const response = await api.post('/auth/login/', { email, password });
+            const normalizedEmail = email.trim().toLowerCase();
+            const response = await api.post('/auth/login/', { email: normalizedEmail, password });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
             await claimInviteAndRedirect(user.id);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Login failed", error);
-            alert("Invalid credentials");
+            const detail = error?.response?.data?.detail;
+            alert(detail || "Invalid credentials");
         } finally {
             setIsLoading(false);
         }

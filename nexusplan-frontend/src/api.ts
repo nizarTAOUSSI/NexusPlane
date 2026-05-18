@@ -37,6 +37,7 @@ api.interceptors.request.use(
       } catch {}
     } else if (config.headers && skipAuth) {
       delete config.headers['X-User-Id'];
+      delete config.headers['X-Is-Superuser'];
     }
 
     return config;
