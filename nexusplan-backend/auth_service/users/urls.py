@@ -10,6 +10,8 @@ from .views import (
     RegisterView,
     UpdateProfileView,
     GoogleLoginView,
+    AdminListUsersView,
+    AdminBanUserView,
 )
 
 urlpatterns = [
@@ -22,5 +24,7 @@ urlpatterns = [
     path("lookup/", LookupByEmailView.as_view(), name="auth-lookup-by-email"),
     path("lookup-by-id/", LookupByIdView.as_view(), name="auth-lookup-by-id"),
     path("lookup-by-ids/", LookupByIdsView.as_view(), name="auth-lookup-by-ids"),
+    path("admin/users/", AdminListUsersView.as_view(), name="admin-list-users"),
+    path("admin/users/<str:pk>/ban/", AdminBanUserView.as_view(), name="admin-ban-user"),
 ]
 
