@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Token
+from .models import Token, User
 from .serializers import (
     ChangePasswordSerializer,
     LoginResponseSerializer,
@@ -620,4 +620,170 @@ class AdminProjectsWithMembersView(APIView):
             )
 
         return Response(resp.json(), status=status.HTTP_200_OK)
+
+
+class AdminBanUserView(APIView):
+    """Superuser-only endpoint: ban (deactivate) a user account."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Admin: ban user",
+        responses={
+            200: OpenApiTypes.OBJECT,
+            403: OpenApiResponse(description="Superuser required"),
+            404: OpenApiResponse(description="User not found"),
+        },
+        tags=_ADMIN_TAG,
+    )
+    def post(self, request: Request, user_id: str) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        try:
+            target = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if str(target.id) == str(request.user.id):
+            return Response(
+                {"detail": "You cannot ban your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target.is_active = False
+        target.is_online = False
+        target.save(update_fields=["is_active", "is_online", "updatedAt"])
+        Token.objects.filter(user=target, isValid=True).update(isValid=False)
+
+        return Response(
+            {
+                "detail": "User banned successfully.",
+                "userId": str(target.id),
+                "email": target.email,
+                "is_active": target.is_active,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminUpdateUserView(APIView):
+    """Superuser-only endpoint: partially update a user by user id."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Admin: update user by id",
+        request=OpenApiTypes.OBJECT,
+        responses={
+            200: OpenApiTypes.OBJECT,
+            400: OpenApiResponse(description="Invalid payload"),
+            403: OpenApiResponse(description="Superuser required"),
+            404: OpenApiResponse(description="User not found"),
+        },
+        tags=_ADMIN_TAG,
+    )
+    def patch(self, request: Request, user_id: str) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        try:
+            target = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        payload = request.data if isinstance(request.data, dict) else {}
+        if not payload:
+            return Response(
+                {"detail": "Provide at least one field to update."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        allowed_fields = {"email", "username", "avatar", "role", "is_active", "is_staff", "is_superuser"}
+        unknown_fields = [k for k in payload.keys() if k not in allowed_fields]
+        if unknown_fields:
+            return Response(
+                {"detail": f"Unsupported fields: {', '.join(unknown_fields)}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        def _parse_bool(v):
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                s = v.strip().lower()
+                if s in {"true", "1", "yes"}:
+                    return True
+                if s in {"false", "0", "no"}:
+                    return False
+            raise ValueError("Expected boolean value")
+
+        # Identity fields
+        if "email" in payload:
+            new_email = str(payload.get("email") or "").strip().lower()
+            if not new_email:
+                return Response({"detail": "email cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+            email_exists = User.objects.filter(email__iexact=new_email).exclude(id=target.id).exists()
+            if email_exists:
+                return Response({"detail": "A user with this email already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            target.email = new_email
+
+        if "username" in payload:
+            new_username = str(payload.get("username") or "").strip()
+            if not new_username:
+                return Response({"detail": "username cannot be empty."}, status=status.HTTP_400_BAD_REQUEST)
+            target.username = new_username
+
+        if "avatar" in payload:
+            avatar_val = payload.get("avatar")
+            target.avatar = str(avatar_val).strip() if avatar_val is not None else ""
+
+        if "role" in payload:
+            role_val = str(payload.get("role") or "").strip().upper()
+            valid_roles = {choice[0] for choice in User._meta.get_field("role").choices}
+            if role_val not in valid_roles:
+                return Response(
+                    {"detail": f"Invalid role. Allowed values: {', '.join(sorted(valid_roles))}"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            target.role = role_val
+
+        # Privileged flags
+        try:
+            deactivated = False
+            if "is_active" in payload:
+                new_is_active = _parse_bool(payload.get("is_active"))
+                if str(target.id) == str(request.user.id) and not new_is_active:
+                    return Response({"detail": "You cannot deactivate your own account."}, status=status.HTTP_400_BAD_REQUEST)
+                target.is_active = new_is_active
+                deactivated = not new_is_active
+
+            if "is_staff" in payload:
+                new_is_staff = _parse_bool(payload.get("is_staff"))
+                if str(target.id) == str(request.user.id) and not new_is_staff:
+                    return Response({"detail": "You cannot remove your own staff access."}, status=status.HTTP_400_BAD_REQUEST)
+                target.is_staff = new_is_staff
+
+            if "is_superuser" in payload:
+                new_is_superuser = _parse_bool(payload.get("is_superuser"))
+                if str(target.id) == str(request.user.id) and not new_is_superuser:
+                    return Response({"detail": "You cannot remove your own superuser access."}, status=status.HTTP_400_BAD_REQUEST)
+                target.is_superuser = new_is_superuser
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        target.save()
+        if deactivated:
+            Token.objects.filter(user=target, isValid=True).update(isValid=False)
+        _cache_user(target)
+
+        return Response(
+            {
+                "detail": "User updated successfully.",
+                "user": UserProfileSerializer(target, context={"request": request}).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 

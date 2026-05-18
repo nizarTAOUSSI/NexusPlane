@@ -3,12 +3,14 @@
 import os
 
 from django.contrib import admin
+from django.conf import settings as django_settings
 from django.urls import include, path
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
+import requests as http_requests
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -20,6 +22,44 @@ def _verify_internal_key(request) -> bool:
     expected = os.environ.get("INTERNAL_API_KEY", "").strip()
     incoming = request.headers.get("X-Internal-Key", "").strip()
     return bool(expected) and expected == incoming
+
+
+def _lookup_users_by_ids(user_ids: list[str]) -> dict[str, dict]:
+    unique_ids = [u for u in dict.fromkeys(user_ids) if u]
+    if not unique_ids:
+        return {}
+
+    auth_url = getattr(django_settings, "AUTH_SERVICE_URL", "http://auth_service:8000").rstrip("/")
+    endpoint = f"{auth_url}/api/auth/lookup-by-ids/"
+    headers = {
+        "Host": "localhost",
+        "X-Internal-Key": os.environ.get("INTERNAL_API_KEY", "").strip(),
+    }
+
+    try:
+        resp = http_requests.get(
+            endpoint,
+            params={"ids": ",".join(unique_ids)},
+            headers=headers,
+            timeout=8,
+        )
+    except Exception:
+        return {}
+
+    if resp.status_code != 200:
+        return {}
+
+    try:
+        users = resp.json()
+    except Exception:
+        return {}
+
+    out: dict[str, dict] = {}
+    for u in users:
+        uid = str(u.get("id") or "")
+        if uid:
+            out[uid] = u
+    return out
 
 
 @api_view(["GET"])
@@ -38,6 +78,8 @@ def internal_projects_with_members(request):
 
     projects = Project.objects.all().order_by("-createdAt")
     memberships = Membership.objects.select_related("projectId").all()
+    user_ids = [str(m.userId) for m in memberships]
+    users_by_id = _lookup_users_by_ids(user_ids)
 
     by_project: dict[str, list[dict]] = {}
     for m in memberships:
@@ -48,6 +90,12 @@ def internal_projects_with_members(request):
                 "userId": str(m.userId),
                 "role": m.role,
                 "joinedAt": m.joinedAt.isoformat(),
+                "user": users_by_id.get(str(m.userId), {
+                    "id": str(m.userId),
+                    "username": None,
+                    "email": None,
+                    "avatar": None,
+                }),
             }
         )
 

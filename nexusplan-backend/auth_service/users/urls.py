@@ -2,7 +2,9 @@ from django.urls import path
 
 from .views import (
     AdminAIRequestLogsView,
+    AdminBanUserView,
     AdminProjectsWithMembersView,
+    AdminUpdateUserView,
     AdminUsersView,
     ChangePasswordView,
     LoginView,
@@ -26,6 +28,8 @@ urlpatterns = [
     path("lookup-by-id/", LookupByIdView.as_view(), name="auth-lookup-by-id"),
     path("lookup-by-ids/", LookupByIdsView.as_view(), name="auth-lookup-by-ids"),
     path("admin/users/", AdminUsersView.as_view(), name="auth-admin-users"),
+    path("admin/users/<uuid:user_id>/", AdminUpdateUserView.as_view(), name="auth-admin-update-user"),
+    path("admin/ban-user/<uuid:user_id>/", AdminBanUserView.as_view(), name="auth-admin-ban-user"),
     path("admin/ai-request-logs/", AdminAIRequestLogsView.as_view(), name="auth-admin-ai-request-logs"),
     path("admin/projects-with-members/", AdminProjectsWithMembersView.as_view(), name="auth-admin-projects-with-members"),
 ]
