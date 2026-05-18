@@ -27,9 +27,12 @@ api.interceptors.request.use(
     const rawUser = localStorage.getItem('user_info');
     if (rawUser && config.headers && !skipAuth) {
       try {
-        const u = JSON.parse(rawUser) as { id?: string };
+        const u = JSON.parse(rawUser) as { id?: string; is_superuser?: boolean };
         if (u.id) {
           config.headers['X-User-Id'] = u.id;
+        }
+        if (u.is_superuser) {
+          config.headers['X-Is-Superuser'] = 'true';
         }
       } catch {}
     } else if (config.headers && skipAuth) {

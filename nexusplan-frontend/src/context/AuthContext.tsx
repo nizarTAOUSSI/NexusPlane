@@ -8,6 +8,8 @@ export interface UserInfo {
   avatar?: string;
   role: string;
   has_password?: boolean;
+  is_superuser?: boolean;
+  is_active?: boolean;
 }
 
 interface AuthContextType {

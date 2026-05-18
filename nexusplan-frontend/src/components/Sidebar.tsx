@@ -19,6 +19,7 @@ import {
   Users,
   MessageSquare,
   Menu,
+  ShieldAlert,
 } from 'lucide-react';
 import { IoFolderOutline } from 'react-icons/io5';
 import { LuKanban } from 'react-icons/lu';
@@ -399,7 +400,7 @@ const Sidebar: React.FC<{ isMobileOpen?: boolean; onMobileClose?: () => void }> 
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [subOpen, setSubOpen] = useState<string | null>('dashboard');
   const [profileManagerOpen, setProfileManagerOpen] = useState(false);
@@ -674,6 +675,24 @@ const Sidebar: React.FC<{ isMobileOpen?: boolean; onMobileClose?: () => void }> 
       </div>
 
       <div className="sb-footer">
+        {user?.is_superuser && (
+          <button 
+            className="sb-settings sb-item" 
+            title={collapsed ? 'Admin Dashboard' : undefined}
+            onClick={() => navigate('/admin')}
+          >
+            <span className="sb-item-icon"><ShieldAlert size={18} strokeWidth={2} /></span>
+            <AnimatePresence initial={false}>
+              {!collapsed && (
+                <motion.span className="sb-item-label"
+                  initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+                  transition={{ duration: 0.15 }}
+                >Admin Dashboard</motion.span>
+              )}
+            </AnimatePresence>
+          </button>
+        )}
+
         <button 
           className="sb-settings sb-item" 
           title={collapsed ? 'Profile Settings' : undefined}
