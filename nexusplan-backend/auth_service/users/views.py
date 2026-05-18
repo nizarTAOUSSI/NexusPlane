@@ -787,3 +787,32 @@ class AdminUpdateUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
+
+class AdminListUsersView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Admin list all users", tags=_PROFILE_TAG)
+    def get(self, request: Request) -> Response:
+        if not request.user.is_superuser:
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        from .models import User
+        users = User.objects.all().order_by("-createdAt")
+        return Response(UserProfileSerializer(users, many=True).data)
+
+class AdminBanUserView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(summary="Admin ban/unban user", tags=_PROFILE_TAG)
+    def post(self, request: Request, pk: str) -> Response:
+        if not request.user.is_superuser:
+            return Response({"detail": "Forbidden"}, status=status.HTTP_403_FORBIDDEN)
+        from .models import User
+        try:
+            user = User.objects.get(id=pk)
+            if user.is_superuser:
+                return Response({"detail": "Cannot ban superuser"}, status=status.HTTP_400_BAD_REQUEST)
+            user.is_active = not user.is_active
+            user.save()
+            return Response(UserProfileSerializer(user).data)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found"}, status=status.HTTP_404_NOT_FOUND)
