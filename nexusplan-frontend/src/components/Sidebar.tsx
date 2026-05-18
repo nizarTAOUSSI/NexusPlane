@@ -361,7 +361,7 @@ export const TopNavbar: React.FC<{ onMobileMenuToggle?: () => void }> = ({ onMob
                   />
                   <div>
                     <p className="nb-user-menu-name">{user?.username ?? 'John Doe'}</p>
-                    <p className="nb-user-menu-email">{user?.email ?? 'john@nexusplan.io'}</p>
+                    <p className="nb-user-menu-email overflow-hidden">{user?.email ?? 'john@nexusplan.io'} </p>
                   </div>
                 </div>
                 <div className="nb-user-menu-divider" />

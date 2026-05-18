@@ -1,6 +1,7 @@
 import json
 import time
 import logging
+import requests as http_requests
 
 import redis as redis_client
 from django.conf import settings as django_settings
@@ -34,6 +35,7 @@ from .serializers import (
 _AUTH_TAG = ["Authentication"]
 _INTERNAL_TAG = ["Internal"]
 _PROFILE_TAG = ["Profile"]
+_ADMIN_TAG = ["Admin"]
 logger = logging.getLogger(__name__)
 
 
@@ -64,6 +66,22 @@ def _cache_user(user) -> None:
         r.set(f"user:email:{user.email.lower()}", data, ex=_USER_CACHE_TTL)
     except Exception:  # Redis unavailable — non-fatal
         pass
+
+
+def _require_superuser(request: Request) -> Response | None:
+    if not request.user.is_authenticated:
+        return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+    if not request.user.is_superuser:
+        return Response({"detail": "Only superusers can access this endpoint."}, status=status.HTTP_403_FORBIDDEN)
+    return None
+
+
+def _internal_headers() -> dict[str, str]:
+    return {
+        "Content-Type": "application/json",
+        "X-Internal-Key": getattr(django_settings, "INTERNAL_API_KEY", ""),
+        "Host": "localhost",
+    }
 
 # ---------------------------------------------------------------------------
 # Register
@@ -510,4 +528,96 @@ class LookupByIdsView(APIView):
             UserProfileSerializer(users, many=True, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class AdminUsersView(APIView):
+    """Superuser-only endpoint: list all users."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Admin: get all users",
+        responses={200: UserProfileSerializer(many=True), 403: OpenApiResponse(description="Superuser required")},
+        tags=_ADMIN_TAG,
+    )
+    def get(self, request: Request) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        from .models import User
+
+        users = User.objects.all().order_by("-createdAt")
+        data = UserProfileSerializer(users, many=True, context={"request": request}).data
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class AdminAIRequestLogsView(APIView):
+    """Superuser-only endpoint: fetch AI request logs from ai_service."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Admin: get AI request logs",
+        responses={200: OpenApiTypes.OBJECT, 403: OpenApiResponse(description="Superuser required")},
+        tags=_ADMIN_TAG,
+    )
+    def get(self, request: Request) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        ai_url = getattr(django_settings, "AI_SERVICE_URL", "http://ai_service:8000").rstrip("/")
+        endpoint = f"{ai_url}/api/internal/ai-request-logs/"
+
+        try:
+            resp = http_requests.get(endpoint, headers=_internal_headers(), timeout=10)
+        except Exception as exc:  # noqa: BLE001
+            return Response(
+                {"detail": f"Failed to contact ai_service: {exc}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        if resp.status_code != 200:
+            return Response(
+                {"detail": "ai_service returned an error", "status": resp.status_code, "body": (resp.text or "")[:500]},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(resp.json(), status=status.HTTP_200_OK)
+
+
+class AdminProjectsWithMembersView(APIView):
+    """Superuser-only endpoint: fetch all projects with member list from project_service."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Admin: get all projects with members",
+        responses={200: OpenApiTypes.OBJECT, 403: OpenApiResponse(description="Superuser required")},
+        tags=_ADMIN_TAG,
+    )
+    def get(self, request: Request) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        project_url = getattr(django_settings, "PROJECT_SERVICE_URL", "http://project_service:8000").rstrip("/")
+        endpoint = f"{project_url}/api/internal/projects-with-members/"
+
+        try:
+            resp = http_requests.get(endpoint, headers=_internal_headers(), timeout=10)
+        except Exception as exc:  # noqa: BLE001
+            return Response(
+                {"detail": f"Failed to contact project_service: {exc}"},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        if resp.status_code != 200:
+            return Response(
+                {"detail": "project_service returned an error", "status": resp.status_code, "body": (resp.text or "")[:500]},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        return Response(resp.json(), status=status.HTTP_200_OK)
 

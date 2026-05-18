@@ -217,3 +217,11 @@ CORS_ALLOW_HEADERS = [
 # ---------------------------------------------------------------------------
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+
+# ---------------------------------------------------------------------------
+# Internal service endpoints for superadmin aggregation APIs
+# ---------------------------------------------------------------------------
+
+AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://ai_service:8000")
+PROJECT_SERVICE_URL = os.environ.get("PROJECT_SERVICE_URL", "http://project_service:8000")
+INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
