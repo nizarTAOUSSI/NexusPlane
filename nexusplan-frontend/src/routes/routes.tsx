@@ -11,6 +11,7 @@ import ChatPage from '../Pages/ChatPage';
 import DashboardLayout from '../layouts/DashboardLayout';
 import ProtectedRoute from './ProtectedRoute';
 import TaskBoard from '../components/Tasks/TaskBoard';
+import AdminDashboardPage from '../Pages/AdminDashboardPage';
 
 export const router = createBrowserRouter([
   {
@@ -47,6 +48,7 @@ export const router = createBrowserRouter([
           { path: '/tasks', element: <TaskBoard /> },
           { path: '/chat', element: <ChatPage /> },
           { path: '/chat/:roomId', element: <ChatPage /> },
+          { path: '/admin', element: <AdminDashboardPage /> },
         ],
       },  
     ],
