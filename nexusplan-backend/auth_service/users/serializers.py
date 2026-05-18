@@ -32,9 +32,10 @@ class UserProfileSerializer(serializers.ModelSerializer):
             "createdAt",
             "updatedAt",
             "has_password",
-            "is_superuser"
+            "is_superuser",
+            "isactive",
         )
-        read_only_fields = ("id", "email", "createdAt", "updatedAt", "has_password", "is_superuser")
+        read_only_fields = ("id", "email", "createdAt", "updatedAt", "has_password", "is_superuser", "isactive")
 
     def get_has_password(self, obj) -> bool:
         if not obj.password:
