@@ -871,9 +871,11 @@ class ProjectViewSet(viewsets.ModelViewSet):
         """Soft-delete: transitions status to DELETED instead of removing the row."""
         project = self.get_object()
         requester_id = request.headers.get("X-User-Id")
-        if str(project.ownerId) != requester_id:
+        is_superuser = request.headers.get("X-Is-Superuser") == "true"
+
+        if str(project.ownerId) != requester_id and not is_superuser:
             return Response(
-                {"detail": "Only the project owner can delete this project."},
+                {"detail": "Only the project owner or a superadmin can delete this project."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         project.status = ProjectStatus.DELETED
