@@ -143,6 +143,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-user-id",  # API Gateway injects the authenticated user UUID
+    "x-is-superuser",
 ]
 
 # ---------------------------------------------------------------------------
