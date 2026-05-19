@@ -868,7 +868,7 @@ class AdminUpdateUserView(APIView):
 class DeactivationAppealView(APIView):
     """Public endpoint for deactivated users to submit an appeal."""
 
-    permission_classes = []  # No authentication required
+    permission_classes = [AllowAny]  # No authentication required
 
     @extend_schema(
         summary="Submit deactivation appeal",
