@@ -193,7 +193,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [socket, setSocket] = useState<Socket | null>(null);
   const socketRef = useRef<Socket | null>(null);
-  /** SPA path; used so toasts fire after leaving /chat (activeRoomId was never cleared). */
   const chatPathnameRef = useRef(location.pathname);
   const roomsRef = useRef<ChatRoom[]>([]);
   const roomMembersRef = useRef<Record<string, TeamMember[]>>({});

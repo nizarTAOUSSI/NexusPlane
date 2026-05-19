@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
-import { ShieldAlert, PowerOff, Power, Trash2, Edit2, Sparkles, Loader2, Inbox } from 'lucide-react';
+import { ShieldAlert, PowerOff, Power, Trash2, Edit2, Sparkles, Loader2, Inbox, Bot, BarChart3, UsersRound, FolderKanban } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Folder from '../components/Folder';
 import { aiService } from '../services/aiService';
@@ -14,13 +14,22 @@ interface NotificationModal {
   onCancel?: () => void;
 }
 
+interface AIRequestLog {
+  id: string;
+  userId: string;
+  projectId: string | null;
+  promptType: string;
+  tokensUsed: number;
+  createdAt: string;
+}
+
 const DialogModal: React.FC<{ dialog: NotificationModal; onClose: () => void }> = ({ dialog, onClose }) => {
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-200 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4"
     >
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -138,7 +147,7 @@ const ProjectDetailsModal: React.FC<ProjectModalProps> = ({ project, users, onCl
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4" 
+      className="fixed inset-0 z-100 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4" 
       onClick={onClose}
     >
       <motion.div 
@@ -436,6 +445,8 @@ const AdminDashboardPage = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [appeals, setAppeals] = useState<any[]>([]);
+  const [aiLogs, setAiLogs] = useState<AIRequestLog[]>([]);
+  const [aiLogsLoading, setAiLogsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
   const [selectedUserToEdit, setSelectedUserToEdit] = useState<any | null>(null);
@@ -463,15 +474,19 @@ const AdminDashboardPage = () => {
 
     const fetchData = async () => {
       try {
+        setAiLogsLoading(true);
         const usersRes = await api.get('/auth/admin/users/');
         setUsers(usersRes.data);
         const projRes = await api.get('/auth/admin/projects-with-members/');
         setProjects(projRes.data);
         const appealsRes = await api.get('/auth/admin/appeals/');
         setAppeals(appealsRes.data);
+        const logsRes = await api.get('/auth/admin/ai-request-logs/');
+        setAiLogs(Array.isArray(logsRes.data) ? logsRes.data : []);
       } catch (e) {
         console.error(e);
       } finally {
+        setAiLogsLoading(false);
         setLoading(false);
       }
     };
@@ -547,22 +562,156 @@ const AdminDashboardPage = () => {
     });
   };
 
+  const aiStats = useMemo(() => {
+    const totalTokens = aiLogs.reduce((sum, log) => sum + (Number(log.tokensUsed) || 0), 0);
+    const uniqueUsers = new Set(aiLogs.map(log => log.userId)).size;
+    const uniqueProjects = new Set(aiLogs.filter(log => !!log.projectId).map(log => log.projectId)).size;
+
+    const byPromptMap = new Map<string, number>();
+    aiLogs.forEach((log) => {
+      const key = (log.promptType || 'unknown').toLowerCase();
+      byPromptMap.set(key, (byPromptMap.get(key) || 0) + 1);
+    });
+    const byPrompt = Array.from(byPromptMap.entries())
+      .map(([promptType, count]) => ({ promptType, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+
+    const byDayMap = new Map<string, number>();
+    aiLogs.forEach((log) => {
+      const day = new Date(log.createdAt).toISOString().slice(0, 10);
+      byDayMap.set(day, (byDayMap.get(day) || 0) + 1);
+    });
+    const byDay = Array.from(byDayMap.entries())
+      .map(([day, count]) => ({ day, count }))
+      .sort((a, b) => a.day.localeCompare(b.day))
+      .slice(-7);
+
+    return {
+      totalRequests: aiLogs.length,
+      totalTokens,
+      uniqueUsers,
+      uniqueProjects,
+      byPrompt,
+      byDay,
+    };
+  }, [aiLogs]);
+
   if (!user?.is_superuser) {
     return <div className="p-8 text-center text-red-500">Forbidden: Superadmin only</div>;
   }
 
   if (loading) return <div className="p-8">Loading admin dashboard...</div>;
 
+  const maxPromptCount = Math.max(1, ...aiStats.byPrompt.map(x => x.count));
+  const maxDayCount = Math.max(1, ...aiStats.byDay.map(x => x.count));
+
   return (
-    <div className="p-8 w-full max-w-7xl mx-auto">
-      <div className="flex items-center gap-3 mb-8">
-        <ShieldAlert size={32} className="text-red-500" />
-        <h1 className="text-2xl font-bold text-gray-800">Superadmin Dashboard</h1>
+    <div id="overview" className="w-full max-w-7xl mx-auto space-y-6">
+      <div className="rounded-3xl border border-slate-200 bg-linear-to-r from-slate-900 via-slate-800 to-red-900 px-6 py-7 shadow-xl shadow-slate-900/10">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-white/10 border border-white/20 text-white flex items-center justify-center">
+              <ShieldAlert size={22} />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-red-200 font-black">Admin Control Center</p>
+              <h1 className="text-2xl font-black text-white">NexusPlan Governance Dashboard</h1>
+            </div>
+          </div>
+          <p className="text-sm text-slate-200 font-medium">Espace dédié administration, sécurité et pilotage plateforme</p>
+        </div>
       </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="rounded-2xl bg-white border border-slate-200 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs uppercase tracking-widest font-bold text-slate-400">AI Requests</p>
+            <BarChart3 size={16} className="text-slate-400" />
+          </div>
+          <p className="text-2xl font-black text-slate-900">{aiStats.totalRequests}</p>
+        </div>
+        <div className="rounded-2xl bg-white border border-slate-200 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs uppercase tracking-widest font-bold text-slate-400">Tokens Consumed</p>
+            <Bot size={16} className="text-slate-400" />
+          </div>
+          <p className="text-2xl font-black text-slate-900">{aiStats.totalTokens.toLocaleString()}</p>
+        </div>
+        <div className="rounded-2xl bg-white border border-slate-200 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs uppercase tracking-widest font-bold text-slate-400">Managed Users</p>
+            <UsersRound size={16} className="text-slate-400" />
+          </div>
+          <p className="text-2xl font-black text-slate-900">{users.length}</p>
+        </div>
+        <div className="rounded-2xl bg-white border border-slate-200 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs uppercase tracking-widest font-bold text-slate-400">Projects</p>
+            <FolderKanban size={16} className="text-slate-400" />
+          </div>
+          <p className="text-2xl font-black text-slate-900">{projects.length}</p>
+        </div>
+      </div>
+
+      <section id="ai-logs" className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="rounded-2xl bg-white border border-slate-200 p-5">
+          <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-4">AI Requests by Prompt Type</h2>
+          {aiLogsLoading ? (
+            <p className="text-sm text-slate-500">Loading AI logs...</p>
+          ) : aiStats.byPrompt.length === 0 ? (
+            <p className="text-sm text-slate-500">No AI request logs available.</p>
+          ) : (
+            <div className="space-y-3">
+              {aiStats.byPrompt.map((item) => (
+                <div key={item.promptType} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-600">
+                    <span className="capitalize">{item.promptType.replace(/_/g, ' ')}</span>
+                    <span>{item.count}</span>
+                  </div>
+                  <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-linear-to-r from-red-500 to-orange-500"
+                      style={{ width: `${(item.count / maxPromptCount) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-2xl bg-white border border-slate-200 p-5">
+          <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-4">AI Requests Last 7 Days</h2>
+          {aiLogsLoading ? (
+            <p className="text-sm text-slate-500">Loading AI logs...</p>
+          ) : aiStats.byDay.length === 0 ? (
+            <p className="text-sm text-slate-500">No activity in the selected period.</p>
+          ) : (
+            <div className="grid grid-cols-7 gap-2 items-end h-44">
+              {aiStats.byDay.map((day) => (
+                <div key={day.day} className="flex flex-col items-center gap-2 h-full justify-end">
+                  <div className="text-[10px] font-bold text-slate-700">{day.count}</div>
+                  <div
+                    className="w-full rounded-t-lg bg-linear-to-t from-slate-900 to-slate-500"
+                    style={{ height: `${Math.max(8, (day.count / maxDayCount) * 120)}px` }}
+                  />
+                  <div className="text-[10px] text-slate-500 font-semibold">{new Date(day.day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-4 text-xs text-slate-500 grid grid-cols-2 gap-2">
+            <p>Unique users: <span className="font-bold text-slate-700">{aiStats.uniqueUsers}</span></p>
+            <p>Active projects: <span className="font-bold text-slate-700">{aiStats.uniqueProjects}</span></p>
+          </div>
+        </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* USERS & APPEALS COLUMN */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden flex flex-col h-[70vh]">
+        <div id="users" className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden flex flex-col h-[70vh]">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3">User Governance</p>
           {/* TABS */}
           <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
             <div className="flex gap-4">
@@ -632,50 +781,53 @@ const AdminDashboardPage = () => {
                 </motion.div>
               ))
             ) : (
-              appeals.length > 0 ? (
-                appeals.map(appeal => (
-                  <motion.div key={appeal.id} layout className="flex flex-col p-4 border-b border-gray-50 hover:bg-slate-50/50 rounded-xl space-y-2 mb-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-sm text-slate-800">{appeal.email}</span>
-                      <span className="text-[10px] text-slate-400 font-semibold">{new Date(appeal.created_at).toLocaleString()}</span>
-                    </div>
-                    <p className="text-xs text-slate-600 leading-relaxed bg-white border border-slate-100 p-3 rounded-xl italic">
-                      "{appeal.message}"
-                    </p>
-                    <div className="flex justify-end gap-2 pt-1">
-                      <button 
-                        onClick={() => handleResolveAppeal(appeal.id, appeal.email)}
-                        className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-extrabold rounded-lg transition-all cursor-pointer"
-                      >
-                        Reactivate & Close
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteAppeal(appeal.id)}
-                        className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-extrabold rounded-lg transition-all cursor-pointer"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </motion.div>
-                ))
-              ) : (
-                <div className="text-center py-12 text-slate-400 text-sm">
-                  No pending deactivation appeals.
-                </div>
-              )
+              <div id="appeals">
+                {appeals.length > 0 ? (
+                  appeals.map(appeal => (
+                    <motion.div key={appeal.id} layout className="flex flex-col p-4 border-b border-gray-50 hover:bg-slate-50/50 rounded-xl space-y-2 mb-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-sm text-slate-800">{appeal.email}</span>
+                        <span className="text-[10px] text-slate-400 font-semibold">{new Date(appeal.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed bg-white border border-slate-100 p-3 rounded-xl italic">
+                        "{appeal.message}"
+                      </p>
+                      <div className="flex justify-end gap-2 pt-1">
+                        <button 
+                          onClick={() => handleResolveAppeal(appeal.id, appeal.email)}
+                          className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-extrabold rounded-lg transition-all cursor-pointer"
+                        >
+                          Reactivate & Close
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteAppeal(appeal.id)}
+                          className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-extrabold rounded-lg transition-all cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-slate-400 text-sm">
+                    No pending deactivation appeals.
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
 
         {/* PROJECTS */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden">
+        <div id="projects" className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden">
+          <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Project Oversight</p>
           <h2 className="text-lg font-semibold mb-4 text-gray-700">All Projects ({projects.length})</h2>
           <div className="overflow-y-auto max-h-[60vh] -mx-4 px-4 py-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-16 p-2 justify-items-center">
               {projects.map(p => {
                 const owner = users.find(u => u.id === p.ownerId);
                 return (
-                  <div key={p.id} className="w-60 h-[220px] flex items-center justify-center">
+                  <div key={p.id} className="w-60 h-55 flex items-center justify-center">
                     <Folder
                       title={p.name}
                       link={`/projects/${p.id}`}
