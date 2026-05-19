@@ -29,6 +29,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const justLoggedIn = React.useRef(false);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('access_token');
@@ -49,18 +50,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const refreshProfile = async () => {
       if (!token) return;
+
+      if (justLoggedIn.current) {
+        justLoggedIn.current = false;
+        return;
+      }
+
       try {
         const res = await api.get('/auth/profile/');
         setUser(res.data);
         localStorage.setItem('user_info', JSON.stringify(res.data));
       } catch (e) {
         console.error('Failed to refresh profile', e);
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('user_info');
-        setToken(null);
-        setUser(null);
-        setIsAuthenticated(false);
       }
     };
 
@@ -68,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [token]);
 
   const login = (access: string, refresh: string, userInfo: UserInfo) => {
+    justLoggedIn.current = true;
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
     localStorage.setItem('user_info', JSON.stringify(userInfo));
