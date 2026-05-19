@@ -131,6 +131,7 @@ const OnlineUsersAvatars: React.FC = () => {
 function notificationPreview(n: { type: string; data: Record<string, unknown> }): string {
   const msg = n.data?.message;
   if (typeof msg === 'string') return msg.length > 72 ? `${msg.slice(0, 72)}…` : msg;
+  if (n.type === 'deactivation_appeal_submitted') return 'A new deactivation appeal was submitted.';
   if (n.type === 'added_to_project') return 'You were added to a project.';
   if (n.type === 'removed_from_project') return 'You were removed from a project.';
   if (n.type === 'project_updated') return 'A project you are in was updated.';

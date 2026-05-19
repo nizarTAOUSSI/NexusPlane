@@ -21,7 +21,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Token, User
+from .models import Notification, Token, User
 from .serializers import (
     ChangePasswordSerializer,
     LoginResponseSerializer,
@@ -891,6 +891,22 @@ class DeactivationAppealView(APIView):
             from .models import DeactivationAppeal
             appeal = DeactivationAppeal.objects.create(email=email, message=message)
             appeal_id = str(appeal.id)
+
+            admin_users = User.objects.filter(is_superuser=True, is_active=True).only("id")
+            notifications = [
+                Notification(
+                    user=admin,
+                    type="deactivation_appeal_submitted",
+                    data={
+                        "message": f"New deactivation appeal from {email}.",
+                        "appeal_id": appeal_id,
+                        "email": email,
+                    },
+                )
+                for admin in admin_users
+            ]
+            if notifications:
+                Notification.objects.bulk_create(notifications)
         except Exception as e:
             logger.error(f"Failed to save appeal to database: {e}")
             appeal_id = "pending-migration"
