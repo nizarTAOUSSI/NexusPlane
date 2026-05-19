@@ -21,8 +21,11 @@ const imagesSlice = createSlice({
     deleteImage(state, action: PayloadAction<string>) {
       delete state.images[action.payload];
     },
+    clearImages(state) {
+      state.images = {};
+    },
   },
 });
 
-export const { setImage, deleteImage } = imagesSlice.actions;
+export const { setImage, deleteImage, clearImages } = imagesSlice.actions;
 export default imagesSlice.reducer;

@@ -13,7 +13,7 @@ import type { DashboardWidgetData } from '../components/Dashboard/widgetContents
 import { resetDashboardLayout, addWidget } from '../store/dashboardLayoutSlice';
 import { setNote } from '../store/notesSlice';
 import { setImage } from '../store/imagesSlice';
-import type { RootState, AppDispatch } from '../store';
+import { persistor, type RootState, type AppDispatch } from '../store';
 
 
 function aggregateByStatus(tasks: Task[]): Record<string, number> {
@@ -194,6 +194,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
     const id = `note-${genId()}`;
     dispatch(addWidget({ i: id, x: 0, y: getBottomY(), w: 4, h: 3, minW: 2, minH: 2 }));
     dispatch(setNote({ id, data: { content: '', color: 'yellow' } }));
+    void persistor.flush();
     scrollToNewWidget();
   }, [dispatch, getBottomY, genId, scrollToNewWidget]);
 
@@ -219,6 +220,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
       const id = `image-${genId()}`;
       dispatch(addWidget({ i: id, x: 0, y: getBottomY(), w: 4, h: 4, minW: 2, minH: 3 }));
       dispatch(setImage({ id, data: { src } }));
+      void persistor.flush();
       e.target.value = '';
       scrollToNewWidget();
     },

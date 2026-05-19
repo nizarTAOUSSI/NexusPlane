@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Check, Pencil } from 'lucide-react';
-import type { AppDispatch, RootState } from '../../store';
+import { persistor, type AppDispatch, type RootState } from '../../store';
 import { setNote, type NoteColor } from '../../store/notesSlice';
 import WidgetShell from './WidgetShell';
 
@@ -47,6 +47,7 @@ const StickyNoteWidget: React.FC<StickyNoteWidgetProps> = ({ widgetId }) => {
 
   const confirm = () => {
     dispatch(setNote({ id: widgetId, data: { content: draft, color: draftColor } }));
+    void persistor.flush();
     setEditing(false);
   };
 

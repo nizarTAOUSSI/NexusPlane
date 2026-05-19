@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Edit2, Image as ImageIcon, Upload } from 'lucide-react';
-import type { AppDispatch, RootState } from '../../store';
+import { persistor, type AppDispatch, type RootState } from '../../store';
 import { setImage } from '../../store/imagesSlice';
 import WidgetShell from './WidgetShell';
 
@@ -44,12 +44,14 @@ const ImageWidget: React.FC<ImageWidgetProps> = ({ widgetId }) => {
     if (!file) return;
     const src = await compressImage(file);
     dispatch(setImage({ id: widgetId, data: { src, caption: imageData?.caption } }));
+    void persistor.flush();
     e.target.value = '';
   };
 
   const saveCaption = () => {
     if (imageData) {
       dispatch(setImage({ id: widgetId, data: { ...imageData, caption: captionDraft } }));
+      void persistor.flush();
     }
     setEditingCaption(false);
   };

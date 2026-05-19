@@ -10,6 +10,7 @@ class UserRole(models.TextChoices):
     MEMBER = "MEMBER", "Member"
     PROJECT_MANAGER = "PROJECT_MANAGER", "Project Manager"
     ADMIN = "ADMIN", "Admin"
+    BOT = "BOT", "Bot"
 
 
 class User(AbstractBaseUser, PermissionsMixin):

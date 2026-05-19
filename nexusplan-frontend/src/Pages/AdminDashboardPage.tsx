@@ -304,6 +304,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
   const [isSuperuser, setIsSuperuser] = useState(userToEdit.is_superuser ?? false);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const isBotAccount = String(userToEdit.role || '').toUpperCase() === 'BOT';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -379,8 +380,8 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
           <div>
             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">System Role</label>
             <div className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 flex items-center justify-between">
-              <span>User</span>
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Default</span>
+              <span>{isBotAccount ? 'Bot' : 'User'}</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">{isBotAccount ? 'System' : 'Default'}</span>
             </div>
           </div>
 
@@ -390,6 +391,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
                 type="checkbox" 
                 checked={isActive} 
                 onChange={e => setIsActive(e.target.checked)} 
+                disabled={isBotAccount}
                 className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
               />
               Active Account
@@ -443,7 +445,7 @@ const AdminDashboardPage = () => {
 
   const [userSearch, setUserSearch] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'banned'>('all');
-  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'superadmin' | 'user'>('all');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'superadmin' | 'user' | 'bot'>('all');
 
   const [projectSearch, setProjectSearch] = useState('');
   const [projectStatusFilter, setProjectStatusFilter] = useState<'all' | 'ACTIVE' | 'ARCHIVED'>('all');
@@ -628,6 +630,8 @@ const AdminDashboardPage = () => {
           ? true
           : userRoleFilter === 'superadmin'
             ? !!u.is_superuser
+            : userRoleFilter === 'bot'
+              ? String(u.role || '').toUpperCase() === 'BOT'
             : !u.is_superuser;
 
       const queryOk =
@@ -820,11 +824,12 @@ const AdminDashboardPage = () => {
             </select>
             <select
               value={userRoleFilter}
-              onChange={(e) => setUserRoleFilter(e.target.value as 'all' | 'superadmin' | 'user')}
+              onChange={(e) => setUserRoleFilter(e.target.value as 'all' | 'superadmin' | 'user' | 'bot')}
               className="border border-slate-200 rounded-xl px-3 py-2 bg-white text-sm text-slate-700"
             >
               <option value="all">All roles</option>
               <option value="superadmin">Superadmins</option>
+              <option value="bot">Bots</option>
               <option value="user">Users</option>
             </select>
           </div>
@@ -843,7 +848,9 @@ const AdminDashboardPage = () => {
                     )}
                     <div className="min-w-0">
                       <p className="font-semibold text-sm text-gray-800 truncate">
-                        {u.username} {u.is_superuser && <span className="text-[10px] bg-red-55 text-red-700 border border-red-100 px-2 py-0.5 rounded-full ml-1.5 font-bold tracking-wider">SUPERADMIN</span>}
+                        {u.username}
+                        {String(u.role || '').toUpperCase() === 'BOT' && <span className="text-[10px] bg-cyan-50 text-cyan-700 border border-cyan-100 px-2 py-0.5 rounded-full ml-1.5 font-bold tracking-wider">BOT</span>}
+                        {u.is_superuser && <span className="text-[10px] bg-red-55 text-red-700 border border-red-100 px-2 py-0.5 rounded-full ml-1.5 font-bold tracking-wider">SUPERADMIN</span>}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5 truncate">{u.email}</p>
                     </div>
@@ -861,7 +868,7 @@ const AdminDashboardPage = () => {
                       <Edit2 size={14} />
                     </button>
 
-                    {!u.is_superuser && (
+                    {!u.is_superuser && String(u.role || '').toUpperCase() !== 'BOT' && (
                       <>
                         <button onClick={() => toggleBan(u.id, u.username, u.is_active)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors cursor-pointer" title={u.is_active ? "Ban User" : "Unban User"}>
                           {u.is_active ? <PowerOff size={14} /> : <Power size={14} />}

@@ -23,8 +23,11 @@ const notesSlice = createSlice({
     deleteNote(state, action: PayloadAction<string>) {
       delete state.notes[action.payload];
     },
+    clearNotes(state) {
+      state.notes = {};
+    },
   },
 });
 
-export const { setNote, deleteNote } = notesSlice.actions;
+export const { setNote, deleteNote, clearNotes } = notesSlice.actions;
 export default notesSlice.reducer;

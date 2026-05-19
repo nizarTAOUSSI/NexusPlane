@@ -48,7 +48,12 @@ def ensure_nexus_ai_user(request):
             username=NEXUS_AI_USERNAME,
             password=None,
             avatar=NEXUS_AI_AVATAR,
+            role="BOT",
         )
+
+    if user.role != "BOT":
+        user.role = "BOT"
+        user.save(update_fields=["role"])
 
     if not user.avatar and NEXUS_AI_AVATAR:
         user.avatar = NEXUS_AI_AVATAR

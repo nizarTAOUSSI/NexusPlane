@@ -36,6 +36,7 @@ _AUTH_TAG = ["Authentication"]
 _INTERNAL_TAG = ["Internal"]
 _PROFILE_TAG = ["Profile"]
 _ADMIN_TAG = ["Admin"]
+BOT_EMAIL = getattr(django_settings, "NEXUS_AI_EMAIL", "nexus.ai@bot.local").strip().lower()
 logger = logging.getLogger(__name__)
 
 
@@ -82,6 +83,10 @@ def _internal_headers() -> dict[str, str]:
         "X-Internal-Key": getattr(django_settings, "INTERNAL_API_KEY", ""),
         "Host": "localhost",
     }
+
+
+def _is_bot_user(user: User) -> bool:
+    return user.role == "BOT" or user.email.strip().lower() == BOT_EMAIL
 
 
 def _chat_service_base_url() -> str:
@@ -621,6 +626,10 @@ class AdminUsersView(APIView):
         from .models import User
 
         users = User.objects.all().order_by("-createdAt")
+        bot_user = users.filter(email__iexact=BOT_EMAIL).first()
+        if bot_user and bot_user.role != "BOT":
+            bot_user.role = "BOT"
+            bot_user.save(update_fields=["role"])
         data = UserProfileSerializer(users, many=True, context={"request": request}).data
         return Response(data, status=status.HTTP_200_OK)
 
@@ -731,6 +740,12 @@ class AdminBanUserView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if _is_bot_user(target):
+            return Response(
+                {"detail": "The Nexus AI bot account cannot be banned."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         target.is_active = not target.is_active
         if not target.is_active:
             target.is_online = False
@@ -831,6 +846,11 @@ class AdminUpdateUserView(APIView):
                     {"detail": f"Invalid role. Allowed values: {', '.join(sorted(valid_roles))}"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+            if _is_bot_user(target) and role_val != "BOT":
+                return Response(
+                    {"detail": "The Nexus AI bot account role cannot be changed."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             target.role = role_val
 
         # Privileged flags
@@ -842,6 +862,8 @@ class AdminUpdateUserView(APIView):
                     return Response({"detail": "You cannot deactivate your own account."}, status=status.HTTP_400_BAD_REQUEST)
                 if target.is_superuser and not new_is_active:
                     return Response({"detail": "Superuser accounts cannot be deactivated."}, status=status.HTTP_400_BAD_REQUEST)
+                if _is_bot_user(target) and not new_is_active:
+                    return Response({"detail": "The Nexus AI bot account cannot be deactivated."}, status=status.HTTP_400_BAD_REQUEST)
                 target.is_active = new_is_active
                 deactivated = not new_is_active
 
@@ -901,6 +923,12 @@ class AdminUpdateUserView(APIView):
         if target.is_superuser:
             return Response(
                 {"detail": "Superuser accounts cannot be deleted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if _is_bot_user(target):
+            return Response(
+                {"detail": "The Nexus AI bot account cannot be deleted."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

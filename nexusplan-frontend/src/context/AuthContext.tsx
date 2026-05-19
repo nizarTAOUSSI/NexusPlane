@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../api';
+import { store } from '../store';
+import { resetDashboardLayout } from '../store/dashboardLayoutSlice';
+import { clearNotes } from '../store/notesSlice';
+import { clearImages } from '../store/imagesSlice';
 
 export interface UserInfo {
   id: string;
@@ -96,6 +100,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (e) {
       console.error('Logout error', e);
     } finally {
+      store.dispatch(resetDashboardLayout());
+      store.dispatch(clearNotes());
+      store.dispatch(clearImages());
       localStorage.removeItem('access_token');
       localStorage.removeItem('refresh_token');
       localStorage.removeItem('user_info');

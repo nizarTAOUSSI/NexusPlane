@@ -18,6 +18,21 @@ import dashboardLayoutReducer, {
 import notesReducer from './notesSlice';
 import imagesReducer from './imagesSlice';
 
+function getPersistUserId(): string {
+  try {
+    const raw = localStorage.getItem('user_info');
+    if (!raw) return 'anon';
+    const parsed = JSON.parse(raw) as { id?: string };
+    return typeof parsed.id === 'string' && parsed.id.trim() ? parsed.id : 'anon';
+  } catch {
+    return 'anon';
+  }
+}
+
+function scopedKey(baseKey: string): string {
+  return `${baseKey}:${getPersistUserId()}`;
+}
+
 localforage.config({
   name: 'nexusplan',
   storeName: 'redux_persist',
@@ -25,9 +40,9 @@ localforage.config({
 });
 
 const idbStorage = {
-  getItem: (key: string) => localforage.getItem<string>(key),
-  setItem: (key: string, value: string) => localforage.setItem(key, value),
-  removeItem: (key: string) => localforage.removeItem(key),
+  getItem: (key: string) => localforage.getItem<string>(scopedKey(key)),
+  setItem: (key: string, value: string) => localforage.setItem(scopedKey(key), value),
+  removeItem: (key: string) => localforage.removeItem(scopedKey(key)),
 };
 
 const layoutReconcileTransform = createTransform(

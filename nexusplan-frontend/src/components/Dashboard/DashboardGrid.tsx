@@ -6,6 +6,7 @@ import { X } from 'lucide-react';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import type { AppDispatch, RootState } from '../../store';
+import { persistor } from '../../store';
 import {
   reconcileDashboardLayout,
   setDashboardLayout,
@@ -79,6 +80,7 @@ const DashboardGrid: React.FC<DashboardGridProps> = ({ data, userId, username })
   const persist = useCallback(
     (layout: LayoutItem[]) => {
       dispatch(setDashboardLayout(layout));
+      void persistor.flush();
     },
     [dispatch],
   );
@@ -120,6 +122,7 @@ const DashboardGrid: React.FC<DashboardGridProps> = ({ data, userId, username })
       dispatch(removeWidget(id));
       if (id.startsWith('note-')) dispatch(deleteNote(id));
       else if (id.startsWith('image-')) dispatch(deleteImage(id));
+      void persistor.flush();
     },
     [dispatch],
   );

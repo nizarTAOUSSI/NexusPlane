@@ -1,3 +1,4 @@
+import { GrGroup } from "react-icons/gr";
 import { useNavigate } from "react-router-dom";
 
 interface FolderProps {
@@ -68,8 +69,8 @@ const Folder: React.FC<FolderProps> = ({
             </span>
           )}
           {memberCount !== undefined && (
-            <span className="text-[10px] text-(--text-3)">
-              👥 {memberCount} member{memberCount !== 1 ? 's' : ''}
+            <span className="text-[10px] text-(--text-3) flex items-center gap-1">
+              <GrGroup /> {memberCount} member{memberCount !== 1 ? 's' : ''}
             </span>
           )}
         </div>
