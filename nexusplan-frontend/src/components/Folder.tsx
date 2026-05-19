@@ -6,6 +6,7 @@ interface FolderProps {
   subtitle?: string;
   memberCount?: number;
   status?: string;
+  onClick?: (e: React.MouseEvent) => void;
 }
 
 
@@ -15,12 +16,20 @@ const Folder: React.FC<FolderProps> = ({
   subtitle,
   memberCount,
   status,
+  onClick,
 }) => {
   const navigate = useNavigate();
 
 
   return (
-    <button onClick={() => navigate(link)} title={title}
+    <button onClick={(e) => {
+      if (onClick) {
+        e.preventDefault();
+        onClick(e);
+      } else {
+        navigate(link);
+      }
+    }} title={title}
       className="relative group flex flex-col items-center justify-center w-full h-full"
     >
       <div
