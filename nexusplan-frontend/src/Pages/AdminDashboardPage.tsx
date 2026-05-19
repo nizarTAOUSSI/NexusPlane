@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
-import { ShieldAlert, PowerOff, Power, Trash2, Edit2, Sparkles, Loader2 } from 'lucide-react';
+import { ShieldAlert, PowerOff, Power, Trash2, Edit2, Sparkles, Loader2, Inbox } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Folder from '../components/Folder';
 import { aiService } from '../services/aiService';
@@ -41,7 +41,7 @@ const DialogModal: React.FC<{ dialog: NotificationModal; onClose: () => void }> 
             <>
               <button 
                 onClick={() => { dialog.onCancel?.(); onClose(); }} 
-                className="px-4 py-2.5 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 transition-all cursor-pointer"
+                className="px-4 py-2.5 border border-slate-200 text-xs font-bold text-slate-650 rounded-xl hover:bg-slate-50 transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -412,7 +412,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
             <button 
               type="button" 
               onClick={onClose} 
-              className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-650 hover:bg-slate-50 transition-all cursor-pointer"
+              className="px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-655 hover:bg-slate-50 transition-all cursor-pointer"
             >
               Cancel
             </button>
@@ -435,10 +435,14 @@ const AdminDashboardPage = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
+  const [appeals, setAppeals] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
   const [selectedUserToEdit, setSelectedUserToEdit] = useState<any | null>(null);
   
+  // Tabs navigation
+  const [leftTab, setLeftTab] = useState<'users' | 'appeals'>('users');
+
   // Custom dialog notifications modal state
   const [dialog, setDialog] = useState<NotificationModal | null>(null);
 
@@ -463,6 +467,8 @@ const AdminDashboardPage = () => {
         setUsers(usersRes.data);
         const projRes = await api.get('/auth/admin/projects-with-members/');
         setProjects(projRes.data);
+        const appealsRes = await api.get('/auth/admin/appeals/');
+        setAppeals(appealsRes.data);
       } catch (e) {
         console.error(e);
       } finally {
@@ -503,6 +509,44 @@ const AdminDashboardPage = () => {
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
   };
 
+  const handleResolveAppeal = async (appealId: string, email: string) => {
+    const targetUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!targetUser) {
+      showAlert("Could not find a registered user with this email.");
+      return;
+    }
+
+    showConfirm(`Are you sure you want to reactivate user "${targetUser.username}"?`, async () => {
+      try {
+        // Unban user
+        const res = await api.post(`/auth/admin/ban-user/${targetUser.id}/`);
+        setUsers(prev => prev.map(u => u.id === targetUser.id ? { ...u, is_active: res.data.is_active } : u));
+        
+        // Delete appeal record
+        await api.delete(`/auth/admin/appeals/${appealId}/`);
+        setAppeals(prev => prev.filter(a => a.id !== appealId));
+
+        showAlert("User account reactivated successfully.");
+      } catch (e: any) {
+        console.error(e);
+        showAlert(e.response?.data?.detail || "Failed to resolve appeal.");
+      }
+    });
+  };
+
+  const handleDeleteAppeal = async (appealId: string) => {
+    showConfirm("Are you sure you want to dismiss this appeal?", async () => {
+      try {
+        await api.delete(`/auth/admin/appeals/${appealId}/`);
+        setAppeals(prev => prev.filter(a => a.id !== appealId));
+        showAlert("Appeal dismissed successfully.");
+      } catch (e: any) {
+        console.error(e);
+        showAlert("Failed to delete appeal.");
+      }
+    });
+  };
+
   if (!user?.is_superuser) {
     return <div className="p-8 text-center text-red-500">Forbidden: Superadmin only</div>;
   }
@@ -517,57 +561,109 @@ const AdminDashboardPage = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* USERS */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden">
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">All Users ({users.length})</h2>
-          <div className="overflow-y-auto max-h-[60vh] -mx-4 px-4">
-            {users.map(u => (
-              <motion.div key={u.id} layout className="flex items-center justify-between p-3 border-b border-gray-50 hover:bg-gray-50 rounded-lg">
-                <div className="flex items-center gap-3 min-w-0">
-                  {u.avatar ? (
-                    <img src={u.avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
-                      {u.username.slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm text-gray-800 truncate">
-                      {u.username} {u.is_superuser && <span className="text-[10px] bg-red-55 text-red-700 border border-red-100 px-2 py-0.5 rounded-full ml-1.5 font-bold tracking-wider">SUPERADMIN</span>}
-                    </p>
-                    <p className="text-xs text-gray-500 mt-0.5 truncate">{u.email}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${u.is_active ? 'bg-green-50 text-green-700 border border-green-150' : 'bg-red-50 text-red-700 border border-red-150'}`}>
-                     {u.is_active ? 'Active' : 'Banned'}
-                  </span>
-                  
-                  {/* EDIT USER */}
-                  <button 
-                    onClick={() => setSelectedUserToEdit(u)}
-                    className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer"
-                    title="Modify User"
-                  >
-                    <Edit2 size={14} />
-                  </button>
+        {/* USERS & APPEALS COLUMN */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden flex flex-col h-[70vh]">
+          {/* TABS */}
+          <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setLeftTab('users')} 
+                className={`text-sm font-bold pb-2 transition-all cursor-pointer ${leftTab === 'users' ? 'text-indigo-600 border-b-2 border-indigo-650' : 'text-gray-400 hover:text-gray-655'}`}
+              >
+                All Users ({users.length})
+              </button>
+              <button 
+                onClick={() => setLeftTab('appeals')} 
+                className={`text-sm font-bold pb-2 transition-all cursor-pointer flex items-center gap-1.5 ${leftTab === 'appeals' ? 'text-indigo-600 border-b-2 border-indigo-655' : 'text-gray-400 hover:text-gray-655'}`}
+              >
+                <Inbox size={14} />
+                Appeals ({appeals.length})
+              </button>
+            </div>
+          </div>
 
-                  {!u.is_superuser && (
-                    <>
-                      {/* TOGGLE BAN */}
-                      <button onClick={() => toggleBan(u.id, u.username, u.is_active)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors cursor-pointer" title={u.is_active ? "Ban User" : "Unban User"}>
-                        {u.is_active ? <PowerOff size={14} /> : <Power size={14} />}
+          <div className="overflow-y-auto flex-1 -mx-4 px-4">
+            {leftTab === 'users' ? (
+              users.map(u => (
+                <motion.div key={u.id} layout className="flex items-center justify-between p-3 border-b border-gray-50 hover:bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3 min-w-0">
+                    {u.avatar ? (
+                      <img src={u.avatar} alt="avatar" className="w-10 h-10 rounded-full object-cover shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0">
+                        {u.username.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm text-gray-800 truncate">
+                        {u.username} {u.is_superuser && <span className="text-[10px] bg-red-55 text-red-700 border border-red-100 px-2 py-0.5 rounded-full ml-1.5 font-bold tracking-wider">SUPERADMIN</span>}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{u.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${u.is_active ? 'bg-green-50 text-green-700 border border-green-150' : 'bg-red-50 text-red-700 border border-red-150'}`}>
+                       {u.is_active ? 'Active' : 'Banned'}
+                    </span>
+                    
+                    {/* EDIT USER */}
+                    <button 
+                      onClick={() => setSelectedUserToEdit(u)}
+                      className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer"
+                      title="Modify User"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+
+                    {!u.is_superuser && (
+                      <>
+                        {/* TOGGLE BAN */}
+                        <button onClick={() => toggleBan(u.id, u.username, u.is_active)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors cursor-pointer" title={u.is_active ? "Ban User" : "Unban User"}>
+                          {u.is_active ? <PowerOff size={14} /> : <Power size={14} />}
+                        </button>
+                        
+                        {/* DELETE USER */}
+                        <button onClick={() => handleDeleteUser(u.id, u.username)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-650 transition-colors cursor-pointer" title="Delete User">
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              ))
+            ) : (
+              appeals.length > 0 ? (
+                appeals.map(appeal => (
+                  <motion.div key={appeal.id} layout className="flex flex-col p-4 border-b border-gray-50 hover:bg-slate-50/50 rounded-xl space-y-2 mb-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-sm text-slate-800">{appeal.email}</span>
+                      <span className="text-[10px] text-slate-400 font-semibold">{new Date(appeal.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed bg-white border border-slate-100 p-3 rounded-xl italic">
+                      "{appeal.message}"
+                    </p>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button 
+                        onClick={() => handleResolveAppeal(appeal.id, appeal.email)}
+                        className="px-3 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-[10px] font-extrabold rounded-lg transition-all cursor-pointer"
+                      >
+                        Reactivate & Close
                       </button>
-                      
-                      {/* DELETE USER */}
-                      <button onClick={() => handleDeleteUser(u.id, u.username)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-650 transition-colors cursor-pointer" title="Delete User">
-                        <Trash2 size={14} />
+                      <button 
+                        onClick={() => handleDeleteAppeal(appeal.id)}
+                        className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-extrabold rounded-lg transition-all cursor-pointer"
+                      >
+                        Dismiss
                       </button>
-                    </>
-                  )}
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center py-12 text-slate-400 text-sm">
+                  No pending deactivation appeals.
                 </div>
-              </motion.div>
-            ))}
+              )
+            )}
           </div>
         </div>
 

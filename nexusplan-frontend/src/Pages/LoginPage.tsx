@@ -20,6 +20,7 @@ const LoginPage = () => {
     const [isBanned, setIsBanned] = useState(false);
     const [bannedEmail, setBannedEmail] = useState('');
     const [appealMessage, setAppealMessage] = useState('');
+    const [appealSent, setAppealSent] = useState(false);
 
     const inviteProject = searchParams.get('invite_project');
 
@@ -92,17 +93,22 @@ const LoginPage = () => {
         }
     };
 
-    const handleSendAppeal = (e: React.FormEvent) => {
+    const handleSendAppeal = async (e: React.FormEvent) => {
         e.preventDefault();
-        const subject = encodeURIComponent("Account Deactivation Appeal");
-        const body = encodeURIComponent(
-            `Hello NexusPlan Support,\n\nI would like to request reactivation of my account associated with ${bannedEmail}.\n\nAppeal Message:\n${appealMessage}\n\nThank you.`
-        );
-        const mailtoUrl = `mailto:noreply.nexusplan@gmail.com?subject=${subject}&body=${body}`;
-        const tempLink = document.createElement('a');
-        tempLink.href = mailtoUrl;
-        tempLink.target = '_blank';
-        tempLink.click();
+        setIsLoading(true);
+        setErrorMsg(null);
+        try {
+            await api.post('/auth/appeal/', {
+                email: bannedEmail.trim().toLowerCase(),
+                message: appealMessage.trim(),
+            });
+            setAppealSent(true);
+        } catch (err: any) {
+            console.error(err);
+            setErrorMsg(err.response?.data?.detail || "Failed to submit appeal. Please try again later.");
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -140,14 +146,38 @@ const LoginPage = () => {
                 </div>
 
                 <div className="w-full max-w-sm text-center">
-                    {errorMsg && (
+                    {errorMsg && !appealSent && (
                         <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm font-medium text-left flex items-start gap-3 shadow-sm">
                             <span className="mt-0.5">⚠️</span>
                             <div>{errorMsg}</div>
                         </div>
                     )}
 
-                    {isBanned ? (
+                    {appealSent ? (
+                        <div className="space-y-4 text-left">
+                            <div className="p-4 rounded-xl bg-green-50 border border-green-100 text-green-800 text-sm font-medium shadow-sm">
+                                🎉 <strong>Appeal Submitted!</strong> Your reactivation request has been securely sent to our database.
+                            </div>
+                            
+                            <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-slate-700 text-xs font-medium space-y-2 leading-relaxed">
+                                <p className="font-semibold text-slate-800">Our administrators will review your appeal shortly.</p>
+                                <p>If you have urgent questions, you can still contact support directly at <strong>othmane10baz@gmail.com</strong>.</p>
+                            </div>
+
+                            <button 
+                                type="button" 
+                                onClick={() => {
+                                    setIsBanned(false);
+                                    setErrorMsg(null);
+                                    setAppealSent(false);
+                                    setAppealMessage('');
+                                }} 
+                                className="w-full border border-gray-200 text-slate-700 rounded-xl py-3.5 font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all cursor-pointer text-center"
+                            >
+                                Back to Sign In
+                            </button>
+                        </div>
+                    ) : isBanned ? (
                         <form className="space-y-4" onSubmit={handleSendAppeal}>
                             <div className="text-left">
                                 <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Your Email</label>
@@ -173,8 +203,8 @@ const LoginPage = () => {
                             </div>
 
                             <div className="pt-2 flex flex-col gap-2">
-                                <button type="submit" className="w-full bg-[#0d6efd] text-white rounded-xl py-3.5 font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 cursor-pointer">
-                                    🚀 Send Appeal via Email
+                                <button type="submit" disabled={isLoading} className="w-full bg-[#0d6efd] text-white rounded-xl py-3.5 font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 cursor-pointer disabled:opacity-75">
+                                    {isLoading ? 'Submitting Appeal...' : '🚀 Submit Appeal'}
                                 </button>
                                 <button 
                                     type="button" 
