@@ -31,7 +31,10 @@ api.interceptors.request.use(
         if (u.id) {
           config.headers['X-User-Id'] = u.id;
         }
-        if (u.is_superuser) {
+        // Skip X-Is-Superuser when pointing to production backend as its CORS setup does not permit it,
+        // which triggers a preflight failure. Auth microservice handles roles via Bearer token anyway.
+        const isRemote = config.baseURL?.includes('nexusplan.duckdns.org');
+        if (u.is_superuser && !isRemote) {
           config.headers['X-Is-Superuser'] = 'true';
         }
       } catch {}
