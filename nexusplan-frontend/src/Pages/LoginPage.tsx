@@ -98,10 +98,20 @@ const LoginPage = () => {
         setIsLoading(true);
         setErrorMsg(null);
         try {
+            // 1. Save appeal securely in the database
             await api.post('/auth/appeal/', {
                 email: bannedEmail.trim().toLowerCase(),
                 message: appealMessage.trim(),
             });
+            
+            // 2. Automatically launch the default mail composer to send a real email
+            const subject = encodeURIComponent("Account Deactivation Appeal");
+            const body = encodeURIComponent(
+                `Hello NexusPlan Support,\n\nI would like to request reactivation of my account associated with ${bannedEmail}.\n\nAppeal Message:\n${appealMessage}\n\nThank you.`
+            );
+            const mailtoUrl = `mailto:othmane10baz@gmail.com?subject=${subject}&body=${body}`;
+            window.location.href = mailtoUrl;
+
             setAppealSent(true);
         } catch (err: any) {
             console.error(err);
