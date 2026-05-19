@@ -294,7 +294,7 @@ interface EditUserModalProps {
   showAlert: (msg: string) => void;
 }
 
-const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUpdateSuccess, showAlert }) => {
+const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUpdateSuccess }) => {
   const [username, setUsername] = useState(userToEdit.username || '');
   const [email, setEmail] = useState(userToEdit.email || '');
   const [role, setRole] = useState(userToEdit.role || 'USER');
@@ -330,7 +330,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4"
+      className="fixed inset-0 z-110 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4"
       onClick={onClose}
     >
       <motion.div 
