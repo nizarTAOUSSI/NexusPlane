@@ -15,6 +15,8 @@ from .views import (
     RegisterView,
     UpdateProfileView,
     GoogleLoginView,
+    DeactivationAppealView,
+    AdminDeactivationAppealsView,
 )
 
 urlpatterns = [
@@ -32,5 +34,8 @@ urlpatterns = [
     path("admin/ban-user/<uuid:user_id>/", AdminBanUserView.as_view(), name="auth-admin-ban-user"),
     path("admin/ai-request-logs/", AdminAIRequestLogsView.as_view(), name="auth-admin-ai-request-logs"),
     path("admin/projects-with-members/", AdminProjectsWithMembersView.as_view(), name="auth-admin-projects-with-members"),
+    path("appeal/", DeactivationAppealView.as_view(), name="auth-appeal"),
+    path("admin/appeals/", AdminDeactivationAppealsView.as_view(), name="auth-admin-appeals"),
+    path("admin/appeals/<uuid:appeal_id>/", AdminDeactivationAppealsView.as_view(), name="auth-admin-appeal-delete"),
 ]
 
