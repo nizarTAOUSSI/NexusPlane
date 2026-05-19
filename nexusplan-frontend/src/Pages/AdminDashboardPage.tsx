@@ -159,7 +159,6 @@ const ProjectDetailsModal: React.FC<ProjectModalProps> = ({ project, users, onCl
         className="w-full max-w-2xl bg-white rounded-3xl border border-gray-100 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]" 
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/50">
           <div>
             <div className="flex items-center gap-3">
@@ -182,9 +181,7 @@ const ProjectDetailsModal: React.FC<ProjectModalProps> = ({ project, users, onCl
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 overflow-y-auto space-y-6">
-          {/* Description */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</h3>
             <p className="text-sm text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100 whitespace-pre-wrap">
@@ -192,7 +189,6 @@ const ProjectDetailsModal: React.FC<ProjectModalProps> = ({ project, users, onCl
             </p>
           </div>
 
-          {/* Owner details */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Project Owner</h3>
             <div className="flex items-center gap-3.5 p-4 bg-slate-50/50 rounded-2xl border border-slate-100/50">
@@ -210,7 +206,6 @@ const ProjectDetailsModal: React.FC<ProjectModalProps> = ({ project, users, onCl
             </div>
           </div>
 
-          {/* AI SUMMARY */}
           <div className="border-t border-slate-100 pt-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">AI Executive Summary</h3>
@@ -237,7 +232,6 @@ const ProjectDetailsModal: React.FC<ProjectModalProps> = ({ project, users, onCl
             </AnimatePresence>
           </div>
 
-          {/* Members list */}
           <div>
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
               Team Members ({project.members?.length || 0})
@@ -276,7 +270,6 @@ const ProjectDetailsModal: React.FC<ProjectModalProps> = ({ project, users, onCl
           </div>
         </div>
 
-        {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
           <button 
             onClick={handleDeleteProject}
@@ -307,7 +300,6 @@ interface EditUserModalProps {
 const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUpdateSuccess }) => {
   const [username, setUsername] = useState(userToEdit.username || '');
   const [email, setEmail] = useState(userToEdit.email || '');
-  const [role, setRole] = useState(userToEdit.role || 'USER');
   const [isActive, setIsActive] = useState(userToEdit.is_active ?? true);
   const [isSuperuser, setIsSuperuser] = useState(userToEdit.is_superuser ?? false);
   const [isSaving, setIsSaving] = useState(false);
@@ -321,7 +313,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
       const res = await api.patch(`/auth/admin/users/${userToEdit.id}/`, {
         username,
         email,
-        role,
+        role: 'USER',
         is_active: isActive,
         is_superuser: isSuperuser,
       });
@@ -386,14 +378,10 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
 
           <div>
             <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">System Role</label>
-            <select 
-              value={role} 
-              onChange={e => setRole(e.target.value)}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all text-sm font-medium text-slate-800 bg-white"
-            >
-              <option value="USER">Standard User</option>
-              <option value="ADMIN">Administrator</option>
-            </select>
+            <div className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-semibold text-slate-700 flex items-center justify-between">
+              <span>User</span>
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Default</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-4 pt-2">
@@ -455,14 +443,16 @@ const AdminDashboardPage = () => {
 
   const [userSearch, setUserSearch] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'banned'>('all');
-  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'superadmin' | 'admin' | 'member'>('all');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'superadmin' | 'user'>('all');
 
   const [projectSearch, setProjectSearch] = useState('');
   const [projectStatusFilter, setProjectStatusFilter] = useState<'all' | 'ACTIVE' | 'ARCHIVED'>('all');
   const [projectOwnerFilter, setProjectOwnerFilter] = useState<string>('all');
   
+  // Tabs navigation
   const [leftTab, setLeftTab] = useState<'users' | 'appeals'>('users');
 
+  // Custom dialog notifications modal state
   const [dialog, setDialog] = useState<NotificationModal | null>(null);
 
   const showAlert = (message: string) => {
@@ -510,6 +500,7 @@ const AdminDashboardPage = () => {
       setLeftTab('users');
     }
 
+    // Wait for possible tab switch render before scrolling.
     setTimeout(() => {
       const target = document.getElementById(section);
       if (target) {
@@ -637,9 +628,7 @@ const AdminDashboardPage = () => {
           ? true
           : userRoleFilter === 'superadmin'
             ? !!u.is_superuser
-            : userRoleFilter === 'admin'
-              ? !u.is_superuser && String(u.role || '').toUpperCase() === 'ADMIN'
-              : !u.is_superuser && String(u.role || '').toUpperCase() !== 'ADMIN';
+            : !u.is_superuser;
 
       const queryOk =
         !q ||
@@ -831,13 +820,12 @@ const AdminDashboardPage = () => {
             </select>
             <select
               value={userRoleFilter}
-              onChange={(e) => setUserRoleFilter(e.target.value as 'all' | 'superadmin' | 'admin' | 'member')}
+              onChange={(e) => setUserRoleFilter(e.target.value as 'all' | 'superadmin' | 'user')}
               className="border border-slate-200 rounded-xl px-3 py-2 bg-white text-sm text-slate-700"
             >
               <option value="all">All roles</option>
               <option value="superadmin">Superadmins</option>
-              <option value="admin">Admins</option>
-              <option value="member">Members</option>
+              <option value="user">Users</option>
             </select>
           </div>
 
