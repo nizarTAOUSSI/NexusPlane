@@ -210,6 +210,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-user-id",
+    "x-is-superuser",
 ]
 
 # ---------------------------------------------------------------------------
