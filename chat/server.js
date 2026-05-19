@@ -288,6 +288,38 @@ app.get('/', (_req, res) =>
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
+app.post('/internal/appeal-notifications/', (req, res) => {
+    if (req.headers['x-internal-key'] !== INTERNAL_API_KEY) {
+        return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const recipientIds = Array.isArray(req.body?.recipient_ids) ? req.body.recipient_ids.map(String) : [];
+    const notification = req.body?.notification || {};
+
+    if (!recipientIds.length || !notification?.id) {
+        return res.status(400).json({ error: 'recipient_ids and notification.id are required' });
+    }
+
+    let delivered = 0;
+    for (const recipientId of recipientIds) {
+        const socketId = usersOnline[recipientId];
+        if (!socketId) continue;
+
+        io.to(socketId).emit('receiveNotification', {
+            id: notification.id,
+            type: notification.type || 'deactivation_appeal_submitted',
+            data: notification.data || {},
+            is_read: false,
+            created_at: notification.created_at || new Date().toISOString(),
+            from_user: notification.from_user ?? null,
+            from_user_info: notification.from_user_info ?? null,
+        });
+        delivered += 1;
+    }
+
+    return res.json({ status: 'ok', delivered, recipients: recipientIds.length });
+});
+
 
 io.on('connection', (socket) => {
     console.log(`[socket] connected: ${socket.id}`);

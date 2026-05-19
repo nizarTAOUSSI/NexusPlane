@@ -83,6 +83,49 @@ def _internal_headers() -> dict[str, str]:
         "Host": "localhost",
     }
 
+
+def _chat_service_base_url() -> str:
+    return getattr(django_settings, "CHAT_SERVICE_URL", "http://chat_service:5000").rstrip("/")
+
+
+def _notify_realtime_notification(
+    recipient_id: str,
+    notification_id: str,
+    email: str,
+    created_at_iso: str,
+) -> None:
+    if not recipient_id or not notification_id:
+        return
+
+    endpoint = f"{_chat_service_base_url()}/internal/appeal-notifications/"
+    payload = {
+        "recipient_ids": [recipient_id],
+        "notification": {
+            "id": notification_id,
+            "type": "deactivation_appeal_submitted",
+            "data": {
+                "message": f"New deactivation appeal from {email}.",
+                "notification_id": notification_id,
+                "email": email,
+            },
+            "is_read": False,
+            "created_at": created_at_iso,
+            "from_user": None,
+            "from_user_info": None,
+        },
+    }
+
+    try:
+        response = http_requests.post(endpoint, json=payload, headers=_internal_headers(), timeout=5)
+        if response.status_code >= 400:
+            logger.warning(
+                "Chat service refused appeal realtime notification (status=%s): %s",
+                response.status_code,
+                response.text[:200],
+            )
+    except Exception as exc:  # noqa: BLE001 - realtime delivery must not block appeal persistence
+        logger.warning("Failed to push appeal notification to chat service: %s", exc)
+
 # ---------------------------------------------------------------------------
 # Register
 # ---------------------------------------------------------------------------
@@ -893,8 +936,9 @@ class DeactivationAppealView(APIView):
             appeal_id = str(appeal.id)
 
             admin_users = User.objects.filter(is_superuser=True, is_active=True).only("id")
-            notifications = [
-                Notification(
+            created_notifications = []
+            for admin in admin_users:
+                notification = Notification.objects.create(
                     user=admin,
                     type="deactivation_appeal_submitted",
                     data={
@@ -903,10 +947,19 @@ class DeactivationAppealView(APIView):
                         "email": email,
                     },
                 )
-                for admin in admin_users
-            ]
-            if notifications:
-                Notification.objects.bulk_create(notifications)
+                created_notifications.append({
+                    "user_id": str(admin.id),
+                    "notification_id": str(notification.id),
+                    "created_at": notification.created_at.isoformat(),
+                })
+
+            for item in created_notifications:
+                _notify_realtime_notification(
+                    recipient_id=item["user_id"],
+                    notification_id=item["notification_id"],
+                    email=email,
+                    created_at_iso=item["created_at"],
+                )
         except Exception as e:
             logger.error(f"Failed to save appeal to database: {e}")
             appeal_id = "pending-migration"
