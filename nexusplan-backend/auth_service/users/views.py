@@ -372,33 +372,32 @@ class LogoutView(APIView):
         request=LogoutSerializer,
         responses={
             204: OpenApiResponse(description="Successfully logged out"),
-            400: OpenApiResponse(description="Invalid or missing refresh token"),
         },
         tags=_AUTH_TAG,
     )
     def post(self, request: Request) -> Response:
-        refresh_token = request.data.get("refresh")
-        if not refresh_token:
-            return Response(
-                {"detail": "The 'refresh' field is required."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        refresh_token = str(request.data.get("refresh") or "").strip()
 
-        try:
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-        except TokenError:
-            return Response(
-                {"detail": "Invalid or expired refresh token."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except TokenError:
+                logger.info("Logout received an invalid or expired refresh token; treating as already logged out.")
 
-        # Mark the token record as invalid in our audit table
-        Token.objects.filter(
-            user=request.user,
-            refreshToken=refresh_token,
-            isValid=True,
-        ).update(isValid=False)
+        else:
+            logger.info("Logout received no refresh token; treating as already logged out.")
+
+        if refresh_token:
+            Token.objects.filter(
+                user=request.user,
+                refreshToken=refresh_token,
+            ).update(isValid=False)
+        else:
+            Token.objects.filter(
+                user=request.user,
+                isValid=True,
+            ).update(isValid=False)
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 

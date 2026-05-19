@@ -92,23 +92,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    try {
-      const refresh = localStorage.getItem('refresh_token');
-      if (refresh) {
-        await api.post('/auth/logout/', { refresh });
-      }
-    } catch (e) {
-      console.error('Logout error', e);
-    } finally {
-      store.dispatch(resetDashboardLayout());
-      store.dispatch(clearNotes());
-      store.dispatch(clearImages());
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user_info');
-      setToken(null);
-      setUser(null);
-      setIsAuthenticated(false);
+    const access = localStorage.getItem('access_token');
+    const refresh = localStorage.getItem('refresh_token');
+
+    store.dispatch(resetDashboardLayout());
+    store.dispatch(clearNotes());
+    store.dispatch(clearImages());
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_info');
+    setToken(null);
+    setUser(null);
+    setIsAuthenticated(false);
+
+    if (refresh) {
+      void fetch(`${import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'}/auth/logout/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(access ? { Authorization: `Bearer ${access}` } : {}),
+        },
+        body: JSON.stringify({ refresh }),
+      }).catch(() => {
+      });
     }
   };
 
