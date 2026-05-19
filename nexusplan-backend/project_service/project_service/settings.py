@@ -136,6 +136,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     "x-user-id",
+    "x-is-superuser",
 ]
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
