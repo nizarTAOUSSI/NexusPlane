@@ -14,6 +14,7 @@ const LoginPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [errorMsg, setErrorMsg] = useState<React.ReactNode | null>(null);
 
     const inviteProject = searchParams.get('invite_project');
 
@@ -32,13 +33,27 @@ const LoginPage = () => {
             return;
         }
         try {
+            setErrorMsg(null);
             setIsLoading(true);
             const response = await api.post('/auth/google-login/', { credential });
             const { access, refresh, user } = response.data;
             login(access, refresh, user);
             await claimInviteAndRedirect(user.id);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Google login failed", error);
+            const detail = error?.response?.data?.detail;
+            if (detail?.toLowerCase().includes("disabled") || detail?.toLowerCase().includes("banned")) {
+                setErrorMsg(
+                    <span>
+                        Your account has been deactivated. If you believe this is an error, please contact support at{' '}
+                        <a href="mailto:noreply.nexusplan@gmail.com" className="underline font-bold text-red-800 hover:text-red-950 transition-colors">
+                            noreply.nexusplan@gmail.com
+                        </a>.
+                    </span>
+                );
+            } else {
+                setErrorMsg("Google authentication failed. Please try again.");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -47,6 +62,7 @@ const LoginPage = () => {
     const handleEmailLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        setErrorMsg(null);
         try {
             const normalizedEmail = email.trim().toLowerCase();
             const response = await api.post('/auth/login/', { email: normalizedEmail, password });
@@ -56,7 +72,18 @@ const LoginPage = () => {
         } catch (error: any) {
             console.error("Login failed", error);
             const detail = error?.response?.data?.detail;
-            alert(detail || "Invalid credentials");
+            if (detail?.toLowerCase().includes("disabled") || detail?.toLowerCase().includes("banned")) {
+                setErrorMsg(
+                    <span>
+                        Your account has been deactivated. If you believe this is an error, please contact support at{' '}
+                        <a href="mailto:noreply.nexusplan@gmail.com" className="underline font-bold text-red-800 hover:text-red-950 transition-colors">
+                            noreply.nexusplan@gmail.com
+                        </a>.
+                    </span>
+                );
+            } else {
+                setErrorMsg(detail || "Invalid credentials");
+            }
         } finally {
             setIsLoading(false);
         }
@@ -93,6 +120,12 @@ const LoginPage = () => {
                 </div>
 
                 <div className="w-full max-w-sm text-center">
+                    {errorMsg && (
+                        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-100 text-red-700 text-sm font-medium text-left flex items-start gap-3 shadow-sm">
+                            <span className="mt-0.5">⚠️</span>
+                            <div>{errorMsg}</div>
+                        </div>
+                    )}
                     <form className="space-y-4" onSubmit={handleEmailLogin}>
                         <div className="text-left">
                             <input
