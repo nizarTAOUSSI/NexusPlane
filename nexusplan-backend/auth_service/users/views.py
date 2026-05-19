@@ -863,3 +863,77 @@ class AdminUpdateUserView(APIView):
 
         target.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DeactivationAppealView(APIView):
+    """Public endpoint for deactivated users to submit an appeal."""
+
+    permission_classes = []  # No authentication required
+
+    @extend_schema(
+        summary="Submit deactivation appeal",
+        request=OpenApiTypes.OBJECT,
+        responses={201: OpenApiTypes.OBJECT},
+        tags=_AUTH_TAG,
+    )
+    def post(self, request: Request) -> Response:
+        payload = request.data if isinstance(request.data, dict) else {}
+        email = str(payload.get("email") or "").strip().lower()
+        message = str(payload.get("message") or "").strip()
+
+        if not email or not message:
+            return Response(
+                {"detail": "Email and message are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        from .models import DeactivationAppeal
+        appeal = DeactivationAppeal.objects.create(email=email, message=message)
+
+        return Response(
+            {
+                "detail": "Appeal submitted successfully.",
+                "id": str(appeal.id),
+                "email": appeal.email,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class AdminDeactivationAppealsView(APIView):
+    """Superuser-only endpoint: list and delete appeals."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Admin: get all appeals",
+        responses={200: OpenApiTypes.OBJECT},
+        tags=_ADMIN_TAG,
+    )
+    def get(self, request: Request) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        from .models import DeactivationAppeal
+        appeals = DeactivationAppeal.objects.all().values("id", "email", "message", "created_at")
+        return Response(list(appeals), status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Admin: delete appeal",
+        responses={204: None},
+        tags=_ADMIN_TAG,
+    )
+    def delete(self, request: Request, appeal_id: str) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        from .models import DeactivationAppeal
+        try:
+            appeal = DeactivationAppeal.objects.get(id=appeal_id)
+        except DeactivationAppeal.DoesNotExist:
+            return Response({"detail": "Appeal not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        appeal.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
