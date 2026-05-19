@@ -104,18 +104,28 @@ const LoginPage = () => {
                 message: appealMessage.trim(),
             });
             
-            // 2. Automatically launch the default mail composer to send a real email
-            const subject = encodeURIComponent("Account Deactivation Appeal");
-            const body = encodeURIComponent(
-                `Hello NexusPlan Support,\n\nI would like to request reactivation of my account associated with ${bannedEmail}.\n\nAppeal Message:\n${appealMessage}\n\nThank you.`
-            );
-            const mailtoUrl = `mailto:othmane10baz@gmail.com?subject=${subject}&body=${body}`;
-            window.location.href = mailtoUrl;
+            // 2. Send real email directly to othmane10baz@gmail.com in the background
+            const response = await fetch('https://formsubmit.co/ajax/othmane10baz@gmail.com', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    email: bannedEmail.trim().toLowerCase(),
+                    subject: "Account Deactivation Appeal - NexusPlan",
+                    message: `Hello NexusPlan Support,\n\nI would like to request reactivation of my account associated with ${bannedEmail.trim().toLowerCase()}.\n\nAppeal Message:\n${appealMessage.trim()}\n\nThank you.`
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error("FormSubmit delivery failed");
+            }
 
             setAppealSent(true);
         } catch (err: any) {
             console.error(err);
-            setErrorMsg(err.response?.data?.detail || "Failed to submit appeal. Please try again later.");
+            setErrorMsg("Failed to submit appeal. Please try again later.");
         } finally {
             setIsLoading(false);
         }
