@@ -226,3 +226,19 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://ai_service:8000")
 PROJECT_SERVICE_URL = os.environ.get("PROJECT_SERVICE_URL", "http://project_service:8000")
 INTERNAL_API_KEY = os.environ.get("INTERNAL_API_KEY", "")
+
+# ---------------------------------------------------------------------------
+# Email Backend Configuration (Resend SMTP)
+# ---------------------------------------------------------------------------
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.resend.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", 465))
+EMAIL_USE_SSL = os.environ.get("EMAIL_USE_SSL", "True") == "True"
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "False") == "True"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "resend")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", 10))
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL",
+    "NexusPlan <onboarding@resend.dev>",
+)

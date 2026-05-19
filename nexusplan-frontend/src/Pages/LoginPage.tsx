@@ -98,30 +98,12 @@ const LoginPage = () => {
         setIsLoading(true);
         setErrorMsg(null);
         try {
-            // 1. Save appeal securely in the database
+            // Natively submits appeal (saves in DB + sends email via backend Resend SMTP)
             await api.post('/auth/appeal/', {
                 email: bannedEmail.trim().toLowerCase(),
                 message: appealMessage.trim(),
             });
             
-            // 2. Send real email directly to othmane10baz@gmail.com in the background
-            const response = await fetch('https://formsubmit.co/ajax/othmane10baz@gmail.com', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({
-                    email: bannedEmail.trim().toLowerCase(),
-                    subject: "Account Deactivation Appeal - NexusPlan",
-                    message: `Hello NexusPlan Support,\n\nI would like to request reactivation of my account associated with ${bannedEmail.trim().toLowerCase()}.\n\nAppeal Message:\n${appealMessage.trim()}\n\nThank you.`
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error("FormSubmit delivery failed");
-            }
-
             setAppealSent(true);
         } catch (err: any) {
             console.error(err);
