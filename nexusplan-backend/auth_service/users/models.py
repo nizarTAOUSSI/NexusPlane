@@ -127,3 +127,17 @@ class Notification(models.Model):
         return f"Notification {self.type} for {self.user.email}"
 
 
+class DeactivationAppeal(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField()
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "deactivation_appeals"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Appeal from {self.email}"
+
+
