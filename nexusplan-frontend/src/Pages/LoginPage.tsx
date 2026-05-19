@@ -98,7 +98,11 @@ const LoginPage = () => {
         const body = encodeURIComponent(
             `Hello NexusPlan Support,\n\nI would like to request reactivation of my account associated with ${bannedEmail}.\n\nAppeal Message:\n${appealMessage}\n\nThank you.`
         );
-        window.location.href = `mailto:noreply.nexusplan@gmail.com?subject=${subject}&body=${body}`;
+        const mailtoUrl = `mailto:noreply.nexusplan@gmail.com?subject=${subject}&body=${body}`;
+        const tempLink = document.createElement('a');
+        tempLink.href = mailtoUrl;
+        tempLink.target = '_blank';
+        tempLink.click();
     };
 
     return (
