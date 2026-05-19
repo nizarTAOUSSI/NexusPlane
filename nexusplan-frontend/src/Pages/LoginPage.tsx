@@ -16,7 +16,6 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState<React.ReactNode | null>(null);
 
-    // States for Banned/Deactivated Appeals Form
     const [isBanned, setIsBanned] = useState(false);
     const [bannedEmail, setBannedEmail] = useState('');
     const [appealMessage, setAppealMessage] = useState('');
@@ -98,7 +97,6 @@ const LoginPage = () => {
         setIsLoading(true);
         setErrorMsg(null);
         try {
-            // Natively submits appeal (saves in DB + sends email via backend Resend SMTP)
             await api.post('/auth/appeal/', {
                 email: bannedEmail.trim().toLowerCase(),
                 message: appealMessage.trim(),
@@ -158,7 +156,7 @@ const LoginPage = () => {
                     {appealSent ? (
                         <div className="space-y-4 text-left">
                             <div className="p-4 rounded-xl bg-green-50 border border-green-100 text-green-800 text-sm font-medium shadow-sm">
-                                🎉 <strong>Appeal Submitted!</strong> Your reactivation request has been securely sent to our database.
+                                🎉 <strong>Appeal Submitted!</strong> Your reactivation request has been saved for review.
                             </div>
                             
                             <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 text-slate-700 text-xs font-medium space-y-2 leading-relaxed">

@@ -895,29 +895,9 @@ class DeactivationAppealView(APIView):
             logger.error(f"Failed to save appeal to database: {e}")
             appeal_id = "pending-migration"
 
-        # Send actual appeal email in background using the configured Resend SMTP
-        try:
-            from django.core.mail import send_mail
-            subject = "Account Deactivation Appeal - NexusPlan"
-            body = (
-                f"Hello NexusPlan Support,\n\n"
-                f"I would like to request reactivation of my account associated with {email}.\n\n"
-                f"Appeal Message:\n{message}\n\n"
-                f"Thank you."
-            )
-            send_mail(
-                subject=subject,
-                message=body,
-                from_email=django_settings.DEFAULT_FROM_EMAIL,
-                recipient_list=["othmane10baz@gmail.com"],
-                fail_silently=False,
-            )
-        except Exception as mail_err:
-            logger.error(f"Failed to send support email via SMTP: {mail_err}")
-
         return Response(
             {
-                "detail": "Appeal submitted successfully.",
+                "detail": "Appeal saved successfully.",
                 "id": appeal_id,
                 "email": email,
             },
