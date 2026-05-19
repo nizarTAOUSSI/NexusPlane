@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../api';
-import { ShieldAlert, PowerOff, Power, Trash2, Edit2, Sparkles, Loader2, Inbox, Bot, BarChart3, UsersRound, FolderKanban } from 'lucide-react';
+import { ShieldAlert, PowerOff, Power, Trash2, Edit2, Sparkles, Loader2, Inbox, Bot, BarChart3, UsersRound, FolderKanban, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Folder from '../components/Folder';
 import { aiService } from '../services/aiService';
@@ -441,6 +442,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({ userToEdit, onClose, onUp
 };
 
 const AdminDashboardPage = () => {
+  const location = useLocation();
   const { user } = useAuth();
   const [users, setUsers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -450,11 +452,17 @@ const AdminDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<any | null>(null);
   const [selectedUserToEdit, setSelectedUserToEdit] = useState<any | null>(null);
+
+  const [userSearch, setUserSearch] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'banned'>('all');
+  const [userRoleFilter, setUserRoleFilter] = useState<'all' | 'superadmin' | 'admin' | 'member'>('all');
+
+  const [projectSearch, setProjectSearch] = useState('');
+  const [projectStatusFilter, setProjectStatusFilter] = useState<'all' | 'ACTIVE' | 'ARCHIVED'>('all');
+  const [projectOwnerFilter, setProjectOwnerFilter] = useState<string>('all');
   
-  // Tabs navigation
   const [leftTab, setLeftTab] = useState<'users' | 'appeals'>('users');
 
-  // Custom dialog notifications modal state
   const [dialog, setDialog] = useState<NotificationModal | null>(null);
 
   const showAlert = (message: string) => {
@@ -492,6 +500,23 @@ const AdminDashboardPage = () => {
     };
     fetchData();
   }, [user]);
+
+  useEffect(() => {
+    const section = (location.hash || '#overview').slice(1);
+
+    if (section === 'appeals') {
+      setLeftTab('appeals');
+    } else if (section === 'users') {
+      setLeftTab('users');
+    }
+
+    setTimeout(() => {
+      const target = document.getElementById(section);
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  }, [location.hash]);
 
   const toggleBan = async (id: string, username: string, isActive: boolean) => {
     const action = isActive ? 'ban' : 'unban';
@@ -596,6 +621,62 @@ const AdminDashboardPage = () => {
       byDay,
     };
   }, [aiLogs]);
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    return users.filter((u) => {
+      const statusOk =
+        userStatusFilter === 'all'
+          ? true
+          : userStatusFilter === 'active'
+            ? !!u.is_active
+            : !u.is_active;
+
+      const roleOk =
+        userRoleFilter === 'all'
+          ? true
+          : userRoleFilter === 'superadmin'
+            ? !!u.is_superuser
+            : userRoleFilter === 'admin'
+              ? !u.is_superuser && String(u.role || '').toUpperCase() === 'ADMIN'
+              : !u.is_superuser && String(u.role || '').toUpperCase() !== 'ADMIN';
+
+      const queryOk =
+        !q ||
+        String(u.username || '').toLowerCase().includes(q) ||
+        String(u.email || '').toLowerCase().includes(q);
+
+      return statusOk && roleOk && queryOk;
+    });
+  }, [users, userSearch, userStatusFilter, userRoleFilter]);
+
+  const projectOwnerOptions = useMemo(() => {
+    const byId = new Map(users.map((u) => [u.id, u.username || u.email || u.id]));
+    const owners = new Map<string, string>();
+    projects.forEach((p) => {
+      const ownerId = String(p.ownerId || '');
+      if (!ownerId) return;
+      owners.set(ownerId, byId.get(ownerId) || ownerId);
+    });
+    return Array.from(owners.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [users, projects]);
+
+  const filteredProjects = useMemo(() => {
+    const q = projectSearch.trim().toLowerCase();
+    const ownerNameById = new Map(users.map((u) => [u.id, u.username || u.email || u.id]));
+
+    return projects.filter((p) => {
+      const statusOk = projectStatusFilter === 'all' ? true : String(p.status) === projectStatusFilter;
+      const ownerOk = projectOwnerFilter === 'all' ? true : String(p.ownerId) === projectOwnerFilter;
+      const ownerName = String(ownerNameById.get(p.ownerId) || p.ownerId || '').toLowerCase();
+      const queryOk =
+        !q ||
+        String(p.name || '').toLowerCase().includes(q) ||
+        ownerName.includes(q);
+
+      return statusOk && ownerOk && queryOk;
+    });
+  }, [projects, users, projectSearch, projectStatusFilter, projectOwnerFilter]);
 
   if (!user?.is_superuser) {
     return <div className="p-8 text-center text-red-500">Forbidden: Superadmin only</div>;
@@ -708,18 +789,16 @@ const AdminDashboardPage = () => {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* USERS & APPEALS COLUMN */}
-        <div id="users" className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden flex flex-col h-[70vh]">
+      <div className="space-y-6">
+        <div id="users" className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden flex flex-col">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-3">User Governance</p>
-          {/* TABS */}
           <div className="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
             <div className="flex gap-4">
               <button 
                 onClick={() => setLeftTab('users')} 
                 className={`text-sm font-bold pb-2 transition-all cursor-pointer ${leftTab === 'users' ? 'text-indigo-600 border-b-2 border-indigo-650' : 'text-gray-400 hover:text-gray-655'}`}
               >
-                All Users ({users.length})
+                All Users ({filteredUsers.length}/{users.length})
               </button>
               <button 
                 onClick={() => setLeftTab('appeals')} 
@@ -731,9 +810,40 @@ const AdminDashboardPage = () => {
             </div>
           </div>
 
-          <div className="overflow-y-auto flex-1 -mx-4 px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <label className="md:col-span-1 flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-white">
+              <Search size={14} className="text-slate-400" />
+              <input
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Search users..."
+                className="w-full text-sm outline-none bg-transparent"
+              />
+            </label>
+            <select
+              value={userStatusFilter}
+              onChange={(e) => setUserStatusFilter(e.target.value as 'all' | 'active' | 'banned')}
+              className="border border-slate-200 rounded-xl px-3 py-2 bg-white text-sm text-slate-700"
+            >
+              <option value="all">All statuses</option>
+              <option value="active">Active</option>
+              <option value="banned">Banned</option>
+            </select>
+            <select
+              value={userRoleFilter}
+              onChange={(e) => setUserRoleFilter(e.target.value as 'all' | 'superadmin' | 'admin' | 'member')}
+              className="border border-slate-200 rounded-xl px-3 py-2 bg-white text-sm text-slate-700"
+            >
+              <option value="all">All roles</option>
+              <option value="superadmin">Superadmins</option>
+              <option value="admin">Admins</option>
+              <option value="member">Members</option>
+            </select>
+          </div>
+
+          <div className="overflow-y-auto -mx-4 px-4 max-h-[60vh]">
             {leftTab === 'users' ? (
-              users.map(u => (
+              filteredUsers.length > 0 ? filteredUsers.map(u => (
                 <motion.div key={u.id} layout className="flex items-center justify-between p-3 border-b border-gray-50 hover:bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3 min-w-0">
                     {u.avatar ? (
@@ -755,7 +865,6 @@ const AdminDashboardPage = () => {
                        {u.is_active ? 'Active' : 'Banned'}
                     </span>
                     
-                    {/* EDIT USER */}
                     <button 
                       onClick={() => setSelectedUserToEdit(u)}
                       className="p-1.5 rounded-lg hover:bg-indigo-50 text-gray-400 hover:text-indigo-600 transition-colors cursor-pointer"
@@ -766,12 +875,10 @@ const AdminDashboardPage = () => {
 
                     {!u.is_superuser && (
                       <>
-                        {/* TOGGLE BAN */}
                         <button onClick={() => toggleBan(u.id, u.username, u.is_active)} className="p-1.5 rounded-lg hover:bg-amber-50 text-gray-400 hover:text-amber-600 transition-colors cursor-pointer" title={u.is_active ? "Ban User" : "Unban User"}>
                           {u.is_active ? <PowerOff size={14} /> : <Power size={14} />}
                         </button>
                         
-                        {/* DELETE USER */}
                         <button onClick={() => handleDeleteUser(u.id, u.username)} className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-650 transition-colors cursor-pointer" title="Delete User">
                           <Trash2 size={14} />
                         </button>
@@ -779,7 +886,11 @@ const AdminDashboardPage = () => {
                     )}
                   </div>
                 </motion.div>
-              ))
+              )) : (
+                <div className="text-center py-12 text-slate-400 text-sm">
+                  No users match current filters.
+                </div>
+              )
             ) : (
               <div id="appeals">
                 {appeals.length > 0 ? (
@@ -818,13 +929,44 @@ const AdminDashboardPage = () => {
           </div>
         </div>
 
-        {/* PROJECTS */}
         <div id="projects" className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 overflow-hidden">
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400 mb-1">Project Oversight</p>
-          <h2 className="text-lg font-semibold mb-4 text-gray-700">All Projects ({projects.length})</h2>
+          <h2 className="text-lg font-semibold mb-4 text-gray-700">All Projects ({filteredProjects.length}/{projects.length})</h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+            <label className="md:col-span-1 flex items-center gap-2 border border-slate-200 rounded-xl px-3 py-2 bg-white">
+              <Search size={14} className="text-slate-400" />
+              <input
+                value={projectSearch}
+                onChange={(e) => setProjectSearch(e.target.value)}
+                placeholder="Search projects or owner..."
+                className="w-full text-sm outline-none bg-transparent"
+              />
+            </label>
+            <select
+              value={projectStatusFilter}
+              onChange={(e) => setProjectStatusFilter(e.target.value as 'all' | 'ACTIVE' | 'ARCHIVED')}
+              className="border border-slate-200 rounded-xl px-3 py-2 bg-white text-sm text-slate-700"
+            >
+              <option value="all">All statuses</option>
+              <option value="ACTIVE">Active</option>
+              <option value="ARCHIVED">Archived</option>
+            </select>
+            <select
+              value={projectOwnerFilter}
+              onChange={(e) => setProjectOwnerFilter(e.target.value)}
+              className="border border-slate-200 rounded-xl px-3 py-2 bg-white text-sm text-slate-700"
+            >
+              <option value="all">All owners</option>
+              {projectOwnerOptions.map(([ownerId, ownerName]) => (
+                <option key={ownerId} value={ownerId}>{ownerName}</option>
+              ))}
+            </select>
+          </div>
+
           <div className="overflow-y-auto max-h-[60vh] -mx-4 px-4 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-16 p-2 justify-items-center">
-              {projects.map(p => {
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-16 p-2 justify-items-center">
+              {filteredProjects.map(p => {
                 const owner = users.find(u => u.id === p.ownerId);
                 return (
                   <div key={p.id} className="w-60 h-55 flex items-center justify-center">
@@ -840,11 +982,15 @@ const AdminDashboardPage = () => {
                 );
               })}
             </div>
+            {filteredProjects.length === 0 && (
+              <div className="text-center py-12 text-slate-400 text-sm">
+                No projects match current filters.
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* PROJECT DETAILS MODAL */}
       <AnimatePresence>
         {selectedProject && (
           <ProjectDetailsModal 
@@ -858,7 +1004,6 @@ const AdminDashboardPage = () => {
         )}
       </AnimatePresence>
 
-      {/* MODIFY USER MODAL */}
       <AnimatePresence>
         {selectedUserToEdit && (
           <EditUserModal 
@@ -870,7 +1015,6 @@ const AdminDashboardPage = () => {
         )}
       </AnimatePresence>
 
-      {/* GENERAL DIALOG MODAL (CONFIRMATIONS / ALERTS) */}
       <AnimatePresence>
         {dialog && (
           <DialogModal 
