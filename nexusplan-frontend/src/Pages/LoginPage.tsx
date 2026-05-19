@@ -16,6 +16,11 @@ const LoginPage = () => {
     const [password, setPassword] = useState('');
     const [errorMsg, setErrorMsg] = useState<React.ReactNode | null>(null);
 
+    // States for Banned/Deactivated Appeals Form
+    const [isBanned, setIsBanned] = useState(false);
+    const [bannedEmail, setBannedEmail] = useState('');
+    const [appealMessage, setAppealMessage] = useState('');
+
     const inviteProject = searchParams.get('invite_project');
 
     const claimInviteAndRedirect = async (_userId: string) => {
@@ -43,12 +48,11 @@ const LoginPage = () => {
             console.error("Google login failed", error);
             const detail = error?.response?.data?.detail;
             if (detail?.toLowerCase().includes("disabled") || detail?.toLowerCase().includes("banned")) {
+                setIsBanned(true);
+                setBannedEmail('');
                 setErrorMsg(
                     <span>
-                        Your account has been deactivated. If you believe this is an error, please contact support at{' '}
-                        <a href="mailto:noreply.nexusplan@gmail.com" className="underline font-bold text-red-800 hover:text-red-950 transition-colors">
-                            noreply.nexusplan@gmail.com
-                        </a>.
+                        Your account has been deactivated. You can send a direct appeal to support using the form below.
                     </span>
                 );
             } else {
@@ -73,12 +77,11 @@ const LoginPage = () => {
             console.error("Login failed", error);
             const detail = error?.response?.data?.detail;
             if (detail?.toLowerCase().includes("disabled") || detail?.toLowerCase().includes("banned")) {
+                setIsBanned(true);
+                setBannedEmail(email.trim().toLowerCase());
                 setErrorMsg(
                     <span>
-                        Your account has been deactivated. If you believe this is an error, please contact support at{' '}
-                        <a href="mailto:noreply.nexusplan@gmail.com" className="underline font-bold text-red-800 hover:text-red-950 transition-colors">
-                            noreply.nexusplan@gmail.com
-                        </a>.
+                        Your account has been deactivated. You can send a direct appeal to support using the form below.
                     </span>
                 );
             } else {
@@ -87,6 +90,15 @@ const LoginPage = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleSendAppeal = (e: React.FormEvent) => {
+        e.preventDefault();
+        const subject = encodeURIComponent("Account Deactivation Appeal");
+        const body = encodeURIComponent(
+            `Hello NexusPlan Support,\n\nI would like to request reactivation of my account associated with ${bannedEmail}.\n\nAppeal Message:\n${appealMessage}\n\nThank you.`
+        );
+        window.location.href = `mailto:noreply.nexusplan@gmail.com?subject=${subject}&body=${body}`;
     };
 
     return (
@@ -115,8 +127,12 @@ const LoginPage = () => {
                         <img src={logo} alt="NexusPlan Logo" className="w-10 h-10 object-contain" />
                         <span className="text-2xl font-bold text-slate-900 tracking-tight">NexusPlan</span>
                     </div>
-                    <h2 className="text-xl font-bold text-slate-900 mb-1.5">Welcome to NexusPlan</h2>
-                    <p className="text-slate-500 text-sm font-medium">Sign in to your account</p>
+                    <h2 className="text-xl font-bold text-slate-900 mb-1.5">
+                        {isBanned ? 'Appeal Account Status' : 'Welcome to NexusPlan'}
+                    </h2>
+                    <p className="text-slate-500 text-sm font-medium">
+                        {isBanned ? 'Appeal your account deactivation' : 'Sign in to your account'}
+                    </p>
                 </div>
 
                 <div className="w-full max-w-sm text-center">
@@ -126,68 +142,114 @@ const LoginPage = () => {
                             <div>{errorMsg}</div>
                         </div>
                     )}
-                    <form className="space-y-4" onSubmit={handleEmailLogin}>
-                        <div className="text-left">
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Email address"
-                                className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
-                            />
-                        </div>
-                        <div className="text-left relative">
-                            <input
-                                type="password"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                placeholder="Password"
-                                className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
-                            />
-                            <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                            </button>
-                        </div>
 
-                        <div className="pt-1">
-                            <a href="#" className="text-sm font-semibold text-slate-700 hover:text-blue-600 transition-colors">
-                                Forgot password?
-                            </a>
-                        </div>
+                    {isBanned ? (
+                        <form className="space-y-4" onSubmit={handleSendAppeal}>
+                            <div className="text-left">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Your Email</label>
+                                <input
+                                    type="email"
+                                    value={bannedEmail}
+                                    onChange={(e) => setBannedEmail(e.target.value)}
+                                    placeholder="Your email address"
+                                    className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
+                                    required
+                                />
+                            </div>
+                            <div className="text-left">
+                                <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block mb-1">Appeal Message</label>
+                                <textarea
+                                    value={appealMessage}
+                                    onChange={(e) => setAppealMessage(e.target.value)}
+                                    placeholder="Describe why your account should be reactivated..."
+                                    rows={4}
+                                    className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium resize-none"
+                                    required
+                                />
+                            </div>
 
-                        <div className="pt-2">
-                            <button type="submit" disabled={isLoading} className="w-full bg-[#0d6efd] text-white rounded-xl py-3.5 font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70">
-                                {isLoading ? 'Loading...' : 'Sign in'}
-                            </button>
-                        </div>
-                    </form>
+                            <div className="pt-2 flex flex-col gap-2">
+                                <button type="submit" className="w-full bg-[#0d6efd] text-white rounded-xl py-3.5 font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 cursor-pointer">
+                                    🚀 Send Appeal via Email
+                                </button>
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        setIsBanned(false);
+                                        setErrorMsg(null);
+                                        setAppealMessage('');
+                                    }} 
+                                    className="w-full border border-gray-200 text-slate-700 rounded-xl py-3.5 font-semibold hover:bg-gray-50 active:scale-[0.98] transition-all cursor-pointer"
+                                >
+                                    Back to Sign In
+                                </button>
+                            </div>
+                        </form>
+                    ) : (
+                        <>
+                            <form className="space-y-4" onSubmit={handleEmailLogin}>
+                                <div className="text-left">
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="Email address"
+                                        className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
+                                    />
+                                </div>
+                                <div className="text-left relative">
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        placeholder="Password"
+                                        className="w-full px-5 py-3.5 rounded-xl border border-gray-200 bg-white placeholder-gray-400 text-gray-900 focus:border-blue-600 focus:ring-4 focus:ring-blue-600/10 outline-none transition-all text-sm font-medium"
+                                    />
+                                    <button type="button" className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                    </button>
+                                </div>
 
-                    <div className="relative mt-6 mb-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-200"></div>
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-4 bg-white text-gray-500 font-medium">Or</span>
-                        </div>
-                    </div>
+                                <div className="pt-1">
+                                    <a href="#" className="text-sm font-semibold text-slate-700 hover:text-blue-600 transition-colors">
+                                        Forgot password?
+                                    </a>
+                                </div>
 
-                    <div className="flex justify-center">
-                        <GoogleLogin
-                            onSuccess={handleGoogleSuccess}
-                            onError={() => console.error('Google Login Failed')}
-                            text="continue_with"
-                            shape="rectangular"
-                            width="384"
-                        />
-                    </div>
+                                <div className="pt-2">
+                                    <button type="submit" disabled={isLoading} className="w-full bg-[#0d6efd] text-white rounded-xl py-3.5 font-semibold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 disabled:opacity-70">
+                                        {isLoading ? 'Loading...' : 'Sign in'}
+                                    </button>
+                                </div>
+                            </form>
 
-                    <p className="text-sm text-slate-500 mt-8 font-medium">
-                        Don't have an account? <a href="/signup" onClick={(e) => { e.preventDefault(); navigate('/signup'); }} className="text-slate-900 font-bold hover:underline decoration-2 underline-offset-2">Sign up</a>
-                    </p>
+                            <div className="relative mt-6 mb-6">
+                                <div className="absolute inset-0 flex items-center">
+                                    <div className="w-full border-t border-gray-200"></div>
+                                </div>
+                                <div className="relative flex justify-center text-sm">
+                                    <span className="px-4 bg-white text-gray-500 font-medium">Or</span>
+                                </div>
+                            </div>
 
+                            <div className="flex justify-center">
+                                <GoogleLogin
+                                    onSuccess={handleGoogleSuccess}
+                                    onError={() => console.error('Google Login Failed')}
+                                    text="continue_with"
+                                    shape="rectangular"
+                                    width="384"
+                                />
+                            </div>
+
+                            <p className="text-sm text-slate-500 mt-8 font-medium">
+                                Don't have an account? <a href="/signup" onClick={(e) => { e.preventDefault(); navigate('/signup'); }} className="text-slate-900 font-bold hover:underline decoration-2 underline-offset-2">Sign up</a>
+                            </p>
+                        </>
+                    )}
                 </div>
             </div>
         </div>
