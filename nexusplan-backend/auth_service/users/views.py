@@ -160,6 +160,12 @@ class LoginView(APIView):
                     )
                 user = existing
 
+        if user is not None and not user.is_active:
+            return Response(
+                {"detail": "This account is disabled."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         if user is None:
             return Response(
                 {"detail": "Invalid email or password."},
@@ -264,6 +270,12 @@ class GoogleLoginView(APIView):
                     "avatar": picture,
                 }
             )
+
+            if not user.is_active:
+                return Response(
+                    {"detail": "This account is disabled."},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
 
             refresh = RefreshToken.for_user(user)
             access_token = str(refresh.access_token)
@@ -676,14 +688,18 @@ class AdminBanUserView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        target.is_active = False
-        target.is_online = False
-        target.save(update_fields=["is_active", "is_online", "updatedAt"])
-        Token.objects.filter(user=target, isValid=True).update(isValid=False)
+        target.is_active = not target.is_active
+        if not target.is_active:
+            target.is_online = False
+            Token.objects.filter(user=target, isValid=True).update(isValid=False)
 
+        target.save(update_fields=["is_active", "is_online", "updatedAt"])
+        _cache_user(target)
+
+        action_str = "banned" if not target.is_active else "unbanned"
         return Response(
             {
-                "detail": "User banned successfully.",
+                "detail": f"User {action_str} successfully.",
                 "userId": str(target.id),
                 "email": target.email,
                 "is_active": target.is_active,
@@ -812,3 +828,38 @@ class AdminUpdateUserView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        summary="Admin: delete user",
+        responses={
+            204: None,
+            400: OpenApiResponse(description="Cannot delete self or superusers"),
+            403: OpenApiResponse(description="Superuser required"),
+            404: OpenApiResponse(description="User not found"),
+        },
+        tags=_ADMIN_TAG,
+    )
+    def delete(self, request: Request, user_id: str) -> Response:
+        forbidden = _require_superuser(request)
+        if forbidden:
+            return forbidden
+
+        try:
+            target = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"detail": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if str(target.id) == str(request.user.id):
+            return Response(
+                {"detail": "You cannot delete your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if target.is_superuser:
+            return Response(
+                {"detail": "Superuser accounts cannot be deleted."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
