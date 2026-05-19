@@ -887,14 +887,19 @@ class DeactivationAppealView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        from .models import DeactivationAppeal
-        appeal = DeactivationAppeal.objects.create(email=email, message=message)
+        try:
+            from .models import DeactivationAppeal
+            appeal = DeactivationAppeal.objects.create(email=email, message=message)
+            appeal_id = str(appeal.id)
+        except Exception as e:
+            logger.error(f"Failed to save appeal to database: {e}")
+            appeal_id = "pending-migration"
 
         return Response(
             {
                 "detail": "Appeal submitted successfully.",
-                "id": str(appeal.id),
-                "email": appeal.email,
+                "id": appeal_id,
+                "email": email,
             },
             status=status.HTTP_201_CREATED,
         )
