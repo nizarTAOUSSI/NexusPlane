@@ -10,7 +10,7 @@ import { TaskStatus, type Task } from '../types/task';
 import type { UserInfo } from '../context/AuthContext';
 import DashboardGrid from '../components/Dashboard/DashboardGrid';
 import type { DashboardWidgetData } from '../components/Dashboard/widgetContents';
-import { resetDashboardLayout, addWidget } from '../store/dashboardLayoutSlice';
+import { resetDashboardLayout, addWidget, coerceToLayoutItems } from '../store/dashboardLayoutSlice';
 import { setNote } from '../store/notesSlice';
 import { setImage } from '../store/imagesSlice';
 import { persistor, type RootState, type AppDispatch } from '../store';
@@ -38,6 +38,7 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
   const dispatch = useDispatch<AppDispatch>();
   const userId = user.id;
   const layout = useSelector((s: RootState) => s.dashboardLayout.layout);
+  const safeLayout = useMemo(() => coerceToLayoutItems(layout), [layout]);
   const imageFileRef = useRef<HTMLInputElement>(null);
 
   const [projects, setProjects] = useState<Project[]>([]);
@@ -171,8 +172,8 @@ const DashboardPageContent: React.FC<DashboardPageContentProps> = ({ user }) => 
   }, [dispatch]);
 
   const getBottomY = useCallback(
-    () => layout.reduce((max, item) => Math.max(max, item.y + item.h), 0),
-    [layout],
+    () => safeLayout.reduce((max, item) => Math.max(max, item.y + item.h), 0),
+    [safeLayout],
   );
 
   const genId = useCallback(

@@ -139,18 +139,22 @@ const dashboardLayoutSlice = createSlice({
       state.layout = reconcileDashboardLayout(action.payload, state.hiddenWidgets);
     },
     resetDashboardLayout(state) {
+      const currentLayout = coerceToLayoutItems(state.layout);
       state.hiddenWidgets = [];
-      const dynamic = state.layout.filter((item) => isDynamicId(item.i));
+      const dynamic = currentLayout.filter((item) => isDynamicId(item.i));
       state.layout = [...DEFAULT_DASHBOARD_LAYOUT.map((x) => ({ ...x })), ...dynamic];
     },
     addWidget(state, action: PayloadAction<LayoutItem>) {
-      state.layout = [...state.layout, action.payload];
+      const currentLayout = coerceToLayoutItems(state.layout);
+      state.layout = [...currentLayout, action.payload];
     },
     removeWidget(state, action: PayloadAction<string>) {
-      state.layout = state.layout.filter((item) => item.i !== action.payload);
+      const currentLayout = coerceToLayoutItems(state.layout);
+      state.layout = currentLayout.filter((item) => item.i !== action.payload);
       if (!isDynamicId(action.payload)) {
-        if (!state.hiddenWidgets.includes(action.payload)) {
-          state.hiddenWidgets = [...state.hiddenWidgets, action.payload];
+        const hidden = Array.isArray(state.hiddenWidgets) ? state.hiddenWidgets : [];
+        if (!hidden.includes(action.payload)) {
+          state.hiddenWidgets = [...hidden, action.payload];
         }
       }
     },
