@@ -4870,6 +4870,24 @@ html {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 16px 16px 16px 4px;
 }
+.chat-bubble--typing-bot {
+  gap: 10px;
+  padding-right: 14px;
+}
+.chat-typing-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-2);
+  letter-spacing: 0.01em;
+}
+.chat-nexus-loader-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  object-fit: cover;
+  animation: nexusLogoWiggle 0.85s ease-in-out infinite;
+  transform-origin: 50% 65%;
+}
 .chat-typing-dot {
   width: 7px; height: 7px; border-radius: 50%;
   background: var(--text-3);
@@ -4880,6 +4898,14 @@ html {
 @keyframes typingBounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
   30%            { transform: translateY(-6px); opacity: 1; }
+}
+@keyframes nexusLogoWiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  15% { transform: rotate(-10deg) scale(1.03); }
+  30% { transform: rotate(8deg) scale(1.03); }
+  45% { transform: rotate(-7deg) scale(1.02); }
+  60% { transform: rotate(6deg) scale(1.02); }
+  75% { transform: rotate(-3deg) scale(1.01); }
 }
 
 /* ── Input bar ─────────────────────────────────────────── */

@@ -856,9 +856,16 @@ const ChatPage: React.FC = () => {
                     : <AvatarChip name={typingName} size={32} color={colorFor(typing.userId)} />
                   }
                 </div>
-                <div className="chat-bubble chat-bubble--typing">
-                  <span className="chat-typing-dot" /><span className="chat-typing-dot" /><span className="chat-typing-dot" />
-                </div>
+                {typing.isBot ? (
+                  <div className="chat-bubble chat-bubble--typing chat-bubble--typing-bot" aria-live="polite" aria-label="Nexus is generating a response">
+                    <img src={NEXUS_AI_AVATAR_URL} alt="Nexus loader" className="chat-nexus-loader-logo" />
+                    <span className="chat-typing-label">Nexus is thinking...</span>
+                  </div>
+                ) : (
+                  <div className="chat-bubble chat-bubble--typing">
+                    <span className="chat-typing-dot" /><span className="chat-typing-dot" /><span className="chat-typing-dot" />
+                  </div>
+                )}
               </div>
             );
           })()}
